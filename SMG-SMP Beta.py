@@ -88,8 +88,6 @@ async def change_inflation(srvfolder, db):
     db['Misc Data']['inflation'] = inflation
     await save_info(srvfolder, blog=f"Inflation rate changed to {round(inflation*100,2):,}%", db=db)
 
-
-
 #Base Commands
 @bot.command()
 async def addbase(ctx, x: int, y: int, z: int, dimension = "Overworld"):
@@ -98,18 +96,18 @@ async def addbase(ctx, x: int, y: int, z: int, dimension = "Overworld"):
     dimensions = ['Overworld', 'Nether', 'End', 'The End']
     if x == 0 and y == 0 and z == 0:
         await ctx.respond("You can't set your base there.")
-    elif x.abs() >= 29999984 or y <= -64 or y >= 320 or z.abs() <= 29999984:
+    elif abs(x) >= 29999984 or y <= -64 or y >= 320 or abs(z) >= 29999984:
         await ctx.respond("Those coordinates are outside of the current build zone. (±29,999,984, -63/319, ±29,999,984).")
     elif not dimension.title() in dimensions:
         await ctx.respond("The current dimensions are: Overworld, Nether, End (or The End). Defaults to 'Overworld' if excluded from command.")
     elif base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         if dimension.title() == "End":
             dimension = 'The End'
-        db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": {dimension.title()}}
-        await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:SMG-SMP')
+        db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": dimension.title()}
+        await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:SMG-SMP_{dimension.lower().replace(" ", "_")}')
         await save_info(srvfolder, db=db)
         await ctx.message.delete()
-        await ctx.send(f"{ctx.author.mention}, your base cords are now set to `{x} {y} {z}`.")
+        await ctx.send(f"{ctx.author.mention}, your base cords are now set to `{x} {y} {z}` in the dimension `{dimension.title()}`.")
     else:
         await ctx.respond("You already have a base set up! Use &viewBase to see it, or &editBase to change it.")
         
@@ -118,23 +116,25 @@ async def editbase(ctx, x: int, y: int, z: int, dimension = 'Overworld'):
     server, userid, name, srvfolder, db = await get_info(ctx)
     base = db['User Data'][userid]['base']
     dimensions = ['Overworld', 'Nether', 'End', 'The End']
+    if dimension.title() == "End":
+        dimension = 'The End'
     if x == 0 and y == 0 and z == 0:
         await ctx.respond("You can't set your base there.")
-    elif x.abs() >= 29999984 or y <= -64 or y >= 320 or z.abs() <= 29999984:
+    elif abs(x) >= 29999984 or y <= -64 or y >= 320 or abs(z) >= 29999984:
         await ctx.respond("Those coordinates are outside of the current build zone. (±29,999,984, -63/319, ±29,999,984).")
     elif base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         await ctx.respond(f"You have no base to edit. Add one with `&addBase {x} {y} {z}`!")
-    elif base['x'] == x and base['y'] == y and base['z'] == z:
+    elif base['x'] == x and base['y'] == y and base['z'] == z and dimension.title() == base['dimension']:
         await ctx.respond("Your base is already set there!")
     elif not dimension.title() in dimensions:
         await ctx.respond("The current dimensions are: Overworld, Nether, End (or The End). Defaults to 'Overworld' if excluded from command.")
     else:
-        db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": {dimension.title()}}
+        db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": dimension.title()}
         await rcon.command(f'dmarker delete id:{name}')
-        await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:SMG-SMP')
+        await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:SMG-SMP_{dimension.lower().replace(" ", "_")}')
         await save_info(srvfolder, db=db)
         await ctx.message.delete()
-        await ctx.send(f"{ctx.author.mention}, your base cords are now set to `{x} {y} {z}`.")
+        await ctx.send(f"{ctx.author.mention}, your base cords are now set to `{x} {y} {z}` in the dimension `{dimension.title()}`.")
 
 @bot.command()
 async def removebase(ctx):
@@ -143,26 +143,11 @@ async def removebase(ctx):
     if base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         await ctx.respond("You already don't have a base saved.")
     else:
-        db['User Data'][userid]['base'] = {"x": 0, "y": 0, "z": 0}
+        db['User Data'][userid]['base'] = {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}
         await rcon.command(f'dmarker delete id:{name}')
         await save_info(srvfolder, db=db)
         await ctx.message.delete()
         await ctx.send(f"{ctx.author.mention}, you have successfully removed your base.")
-        
-@bot.command()
-async def updateuser(ctx, mcuser: discord.Member):
-    server, userid, name, srvfolder, db = await get_info(ctx)
-    playerid, username = await get_user_info(mcuser)
-    if playerid != userid:
-        await ctx.respond("You can only run this command on yourself.")
-        return
-    db['User Data'][userid]['prison']["player"] = name
-    await save_info(srvfolder, db=db)
-
-@updateuser.error
-async def updateuser_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("No user with that name found. Make sure to set your nickname in Discord to that of your new Minecraft username.")
 
 @bot.command()
 async def viewbase(ctx, player: discord.Member):
@@ -173,7 +158,7 @@ async def viewbase(ctx, player: discord.Member):
         await ctx.respond("This player doesn't have a base saved. Ask them to add it!")
     else:
         await ctx.message.delete()
-        await ctx.send(f"{ctx.author.mention}, {username}'s base is `{base['x']} {base['y']} {base['z']}`.")
+        await ctx.send(f"{ctx.author.mention}, {username}'s base is `{base['x']} {base['y']} {base['z']}` in the dimension `{base['dimension']}`.")
 
 #Database Commands
 @bot.command()
@@ -189,7 +174,7 @@ async def addserver(ctx):
     open(f"{path}/rconlog.txt", "x")
     open(f"{path}/maindb.json", "x")
     with open(f"{path}/maindb.json", "r+") as f:
-        data = [{"Misc Data": {"day": 0, "inflation": 0, "ip": {"JIP": "Not Yet Setup", "BIP": "Not Yet Setup", "BP": 0}, "lotto": 0, "tax": 0}}, {"User Data": {}}]
+        data = {"Misc Data": {"day": 0, "inflation": 0, "ip": {"JIP": "Not Yet Setup", "BIP": "Not Yet Setup", "BP": 0}, "lotto": 0, "tax": 0}, "User Data": {}}
         json.dump(data, f)
         f.truncate()
     await ctx.send("Server added!")
@@ -201,7 +186,7 @@ async def adduser(ctx, user: discord.Member):
     if str(playerid) in db['User Data']:
         await ctx.send(f"{username} is already added!")
     else:  
-        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{username}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
+        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{username}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
         db['User Data'].update(data)
         await save_info(srvfolder, db=db)
         await ctx.send(f"Added {username} to the database!")
@@ -248,7 +233,24 @@ async def restoreserver(ctx, username, savename, resetname=None):
 async def update(ctx):
     server, userid, name, srvfolder, db = await get_info(ctx)
     for player in db['User Data']:
-        db['User Data']['player']['base'].update({"dimension": "Overworld"})
+        db['User Data'][player]['base'].update({"dimension": "Overworld"})
+        await save_info(srvfolder, db=db)
+    await ctx.respond("Updated")
+        
+@bot.command()
+async def updateuser(ctx, mcuser: discord.Member):
+    server, userid, name, srvfolder, db = await get_info(ctx)
+    playerid, username = await get_user_info(mcuser)
+    if playerid != userid:
+        await ctx.respond("You can only run this command on yourself.")
+        return
+    db['User Data'][userid]['prison']["player"] = name
+    await save_info(srvfolder, db=db)
+
+@updateuser.error
+async def updateuser_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("No user with that name found. Make sure to set your nickname in Discord to that of your new Minecraft username.")
 
 #Economy Commands
 @bot.command()
