@@ -14,16 +14,10 @@ token = "MTI1OTM2MDAzNjY2NTI5NDkzOQ.G-Lvbq.zpUol7AmWZvqhYsln0ak91PHGmCEzJtLdqzR6
 bot = bridge.Bot(command_prefix="&", help_command=None, case_insensitive=True, intents=intents, sync_commands=True)
 
 @bot.event
-async def on_ready():
-    await bot.change_presence(status=discord.Status.online, activity=discord.Game(name="Use &help for the wiki!"))
-    await rcon.open_connection()
-    print("Bot online!")
-    
-@bot.event
 async def on_member_join(member):
     role = discord.utils.get(member.guild.roles, name="Applicant")
     await member.add_roles(role)
-
+    
 #Ease Of Use Commands
 async def get_info(ctx):
     server, userid, name = ctx.guild.id, str(ctx.author.id), ctx.author.nick
@@ -60,6 +54,12 @@ async def save_info(srvfolder, blog=None, plog=None, rlog=None, slog=None, db=No
             f.seek(0)
             json.dump(db, f)
             f.truncate()
+        with open(f'{Dir}/web/css/data.json', 'r+') as d:
+            yo = db
+            yo["Misc Data"]["ip"] = {"No": "IP"}
+            d.seek(0)
+            json.dump(yo, d)
+            d.truncate()
             
 async def change_inflation(srvfolder, db):
     datalist = []
@@ -87,6 +87,38 @@ async def change_inflation(srvfolder, db):
         inflation = .01
     db['Misc Data']['inflation'] = inflation
     await save_info(srvfolder, blog=f"Inflation rate changed to {round(inflation*100,2):,}%", db=db)
+    
+@tasks.loop(minutes=5)
+async def autoclockout():
+    for files, dirs, root in os.walk(f"{Dir}/discord"):
+        for i in dirs:
+            with open(f"{Dir}/discord/{i}/maindb.json", "r+") as f:
+                data = json.load(f)
+                for player in data['User Data']:
+                    if data["User Data"][player]['economy']['clockin'] != 0:
+                        guild = bot.get_guild(int(i))
+                        username = guild.get_member(int(player)).nick
+                        output = await rcon.command(f"give {username} air")
+                        if "No player was found" in output:
+                            economy, dt = data['User Data'][player]['economy'], datetime.datetime.now()
+                            timestamp = int(round(dt.timestamp()))
+                            earned = timestamp - economy['clockin']
+                            mathstuff, tax = round((earned/60)*7.5, 2), round(earned*.02, 2)
+                            earnings = round(mathstuff-tax, 2)
+                            economy['bank'], economy['clockout'], economy['clockin'] = round(economy['bank']+earnings, 2), timestamp, 0
+                            data['User Data'][player]['economy'] = economy
+                            blog = f"{username} was automatically clocked out of work and was paid ${earnings:,}"
+                            channel = discord.utils.get(guild.text_channels, name="bot-commands")
+                            await channel.send(f"{guild.get_member(int(player)).mention}, you have been clocked out automatically.")
+                            await change_inflation(f"{Dir}/discord/{i}", data)
+                            await save_info(f"{Dir}/discord/{i}", blog, data)
+                        
+@bot.event
+async def on_ready():
+    await bot.change_presence(status=discord.Status.online, activity=discord.Game(name="Use &help for the wiki!"))
+    await rcon.open_connection()
+    autoclockout.start()
+    print("Bot online!")
 
 #Base Commands
 @bot.command()
@@ -232,9 +264,18 @@ async def restoreserver(ctx, username, savename, resetname=None):
 @commands.has_role("Bot Admin")
 async def update(ctx):
     server, userid, name, srvfolder, db = await get_info(ctx)
+    db = dict(db)
     for player in db['User Data']:
-        db['User Data'][player]['base'].update({"dimension": "Overworld"})
-        await save_info(srvfolder, db=db)
+        global passes
+        passes = 0
+        global temp
+        temp = {}
+        for item in db['User Data'][player]['shop']:
+            passes += 1
+            value = db['User Data'][player]['shop'][item].split(":")[]
+            temp.update({item:{{"count": value, "nbt": ""}}})
+        db['User Data'][player]['shop'] = temp
+    await save_info(srvfolder, db=db)
     await ctx.respond("Updated")
         
 @bot.command()
@@ -269,7 +310,7 @@ async def bank(ctx, transaction, amount: float=None):
     server, userid, name, srvfolder, db = await get_info(ctx)
     economy = db['User Data'][userid]['economy']
     money, Bank = economy['money'], economy['bank']
-    if amount < 0.01:
+    if amount != None and amount < 0.01:
         await ctx.respond("You can only transfer a minimum of 1 cent.")
         return
     if transaction.lower() == "deposit":
@@ -316,6 +357,8 @@ async def buy(ctx, seller: typing.Optional[discord.Member], amount: typing.Optio
     elif economy['money'] < inflated:
         await rcon.command(f'tellraw {name} "You don\'t have enough money!"')
         return
+    if not amount:
+        amount = 1
     async def get_sellers(progress, db, preference = None):
         global datalist
         global total
@@ -393,6 +436,10 @@ async def clockin(ctx):
     server, userid, name, srvfolder, db = await get_info(ctx)
     dt = datetime.datetime.now()
     timestamp, economy = int(round(dt.timestamp())), db['User Data'][userid]['economy']
+    output = await rcon.command(f"give {name} air")
+    if "No player was found" in output:
+        await ctx.respond("You need to be in Minecraft to run this command!")
+        return
     if economy['clockin'] != 0:
         await ctx.respond("You need to end your current shift first! `&clockOut`")
         return
@@ -445,6 +492,8 @@ async def drawlottery(ctx):
         
 @bot.command()
 async def enchant(ctx, level: int, *, enchantment: str):
+    await ctx.send("This command is currently deactivated for an update.")
+    return
     server, userid, name, srvfolder, db = await get_info(ctx)
     output = await rcon.command(f"data get entity {name} SelectedItem")
     nbt = output.split('data: ')[1]
@@ -588,9 +637,9 @@ async def price(ctx, amount: typing.Optional[int] = None, *, item: str):
         data = json.load(f)
         cost = db['Misc Data']['inflation']*data[item.title()]
     if not amount:
-        await ctx.respond(f"In the shop, the price of `{item.title()}` is `${round(cost*1.07, 2):,}`, and it will sell for `${round(cost*1.05, 2):,}`.\nIn the void, the price of `{item.title()}` is `${round((cost*1.07)*250, 2):,}`, and it will sell for `${round((cost/4)*.95, 2):,}`.")
+        await ctx.respond(f"In the shop, the price of `{item.title()}` is `${round(cost*1.07, 2):,}`, and it will sell for `${round(cost*.95, 2):,}`.\nIn the void, the price of `{item.title()}` is `${round((cost*1.07)*250, 2):,}`, and it will sell for `${round((cost/4)*.95, 2):,}`.")
     else:
-        await ctx.respond(f"In the shop, the price for `{amount}` of `{item.title()}` is `${round((cost*amount)*1.07, 2):,}`, and will sell for `${round((cost*amount)*1.05, 2):,}`.\nIn the void, the price for `{amount}` of `{item.title()}` is `${round(((cost*amount)*1.07)*250, 2):,}`, and will sell for `${round(((cost*amount)/4)*.95, 2):,}`.")
+        await ctx.respond(f"In the shop, the price for `{amount}` of `{item.title()}` is `${round((cost*amount)*1.07, 2):,}`, and will sell for `${round((cost*amount)*.95, 2):,}`.\nIn the void, the price for `{amount}` of `{item.title()}` is `${round(((cost*amount)*1.07)*250, 2):,}`, and will sell for `${round(((cost*amount)/4)*.95, 2):,}`.")
 
 @bot.command()
 async def randomitem(ctx):
@@ -615,11 +664,15 @@ async def removemoney(ctx, player: discord.Member, amount: float):
     await ctx.message.delete()
 
 @bot.command()
-async def sell(ctx, amount: int, *, item: str):
+async def sell(ctx, amount: int = None, *, item: str):
+    await ctx.send("This command is currently deactivated for an update.")
+    return
     server, userid, name, srvfolder, db = await get_info(ctx)
     output = await rcon.command(f"minecraft:clear {name} {item.replace(' ', '_')} {amount}")
     ingamount = int(output.split()[1])
     await ctx.message.delete()
+    if not amount:
+        amount = 1
     if "No player was found" in output:
         await ctx.respond("You need to be in Minecraft to run this command!")
         return
@@ -648,17 +701,13 @@ async def setmoney(ctx, player: discord.Member, amount: float):
 @bot.command()
 async def shop(ctx, option, player: typing.Optional[discord.Member] = None, amount: typing.Optional[int] = 1, *, item: str = None):
     server, userid, name, srvfolder, db = await get_info(ctx)
-    if player != None:
-        playerid, username = await get_user_info(player)   
-    if option.lower() == "list":
-        shop = db['User Data'][playerid]['shop']
-        global msg
-        msg = f"Starting with the letter \"{item.upper()}\", {username} has:\n"
-        for Object in shop:
-            if Object[0] == item.upper():
-                msg += f"{Object}: {shop[Object]}\n"
-        await ctx.respond(msg)
+    if option.lower() == "get":
+        await ctx.respond(f"http://data.someminegame.com:81/Shop/{player.nick}")
     elif option.lower() == "remove":
+        await ctx.send("This command is currently deactivated for an update.")
+        return
+        if not amount:
+            amount = 1
         amount = int(amount)
         output = await rcon.command(f"give {name} air")
         if "No player was found" in output:
@@ -667,34 +716,19 @@ async def shop(ctx, option, player: typing.Optional[discord.Member] = None, amou
         data = db['User Data'][userid]['shop']
         if not item.title() in data:
             await rcon.command(f'tellraw {name} "You don\'t have any {item} in your shop."')
+            return
         elif data[item.title()] < amount:
-            await rcon.command(f'tellraw {name} "You do not have enough {item}. You need {data[item]-amount} more."')
+            await rcon.command(f'tellraw {name} "You do not have enough {item}. You need {amount-data[item.title()]} more."')
+            return
         elif amount <= 0:
             await rcon.command(f'tellraw {name} "You cannot remove a negative amount of an item from your shop!"')
+            return
         else:
             db['User Data'][userid]['shop'][item.title()] -= amount
-        await rcon.command(f"give {name} {item} {amount}")
+        await rcon.command(f"give {name} {item.lower().replace(' ', '_')} {amount}")
         await rcon.command(f'tellraw {name} ["",{{"text":"You removed ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}},{{"text":" to your shop.","color":"gray"}}]')
-        await save_info(srvfolder, blog=f"{name} removed {amount:,} of {item.title()} to their shop")
+        await save_info(srvfolder, blog=f"{name} removed {amount:,} of {item.title()} from their shop")
         await change_inflation(srvfolder, db=db)      
-    elif option.lower() == "search":
-        global datalist
-        global messagelist
-        users, datalist, messagelist = db['User Data'], [], []
-        for person in users:
-            if item.title() in users[person]['shop']:
-                datalist.append([person, users[person]['shop'][item.title()]])
-        global index
-        global message
-        index, message = 0, f"Here are the players with {item.title()}: ```"
-        for row in datalist:
-            username = await commands.MemberConverter.convert(self=commands.MemberConverter, ctx=ctx, argument=str(row[0]))
-            messagelist.append(f"{username.nick} has {datalist[index][1]:,}")
-            index+=1
-        for mline in messagelist:
-            message+=f"\n{mline}"
-        message+="```"
-        await ctx.respond(message)
 
 @bot.command()
 @commands.has_role("Government Finances")
@@ -751,30 +785,6 @@ async def voidbuy(ctx, amount: typing.Optional[int] = 1, *, item: str):
     await change_inflation(srvfolder, db)
 
 @bot.command()
-async def voidsell(ctx, amount: typing.Optional[int] = 1, *, item: str):
-    server, userid, name, srvfolder, db = await get_info(ctx)
-    inflation = db['Misc Data']['inflation']
-    with open(f"{Dir}/discord/Prices.json", "r+") as f:
-        data = json.load(f)
-    output = await rcon.command(f"minecraft:clear {name} {item.replace(' ', '_')} {amount}")
-    ingamount = int(output.split()[1])
-    if "No player was found" in output:
-        await ctx.respond("You need to be in Minecraft to run this command!")
-        return
-    elif ingamount < amount:
-        await rcon.command(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
-        await rcon.command(f'give {name} {item.replace(" ", "_")} {ingamount}')
-        return
-    payment = round(((inflation*data[item.title()])*amount)/4, 2)
-    tax = round(payment*.05, 2)
-    db['Misc Data']['tax'] += tax
-    db['User Data'][userid]['economy']['money'] += payment*.95
-    await rcon.command(f'tellraw {name} ["",{{"text":"You made","color":"gray"}},{{"text":" ${round(payment*.95, 2):,}","color":"green"}},{{"text":" from ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}}]')
-    await ctx.message.delete()
-    await save_info(srvfolder, blog=f"{name} sold {amount:,} of {item.title()} for ${round(payment*.95, 2):,} and paid ${tax:,} in taxes")
-    await change_inflation(srvfolder, db=db)
-
-@bot.command()
 async def wealthy(ctx):
     server, userid, name, srvfolder, db = await get_info(ctx)
     datalist, messagelist = [], []
@@ -800,7 +810,10 @@ async def wealthy(ctx):
 @bot.bridge_command()
 @commands.has_role("Bot Admin")
 async def amendpoll(ctx, title: str, message: str):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except:
+        pass
     message = await ctx.send(f"```\n{title}\n```\n```\n{message}\n```\nUse ✅ for Yay, ⚠ to change, and ❎ for Nay")
     await message.add_reaction("✅")
     await message.add_reaction("⚠")
