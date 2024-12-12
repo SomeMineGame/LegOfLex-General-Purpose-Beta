@@ -7,8 +7,8 @@ Dir = os.getcwd()
 
 intents, intents.members, intents.guilds = discord.Intents.all(), True, True
 
-AsyncRCON.__init__(AsyncRCON, '192.168.1.64:25563', 'VerySecure', max_command_retries=1)
-rcon = AsyncRCON('192.168.1.64:25563', "VerySecure")
+AsyncRCON.__init__(AsyncRCON, '10.0.0.64:25563', 'VerySecure', max_command_retries=1)
+rcon = AsyncRCON('10.0.0.64:25563', "VerySecure")
 
 token = "MTI1OTM2MDAzNjY2NTI5NDkzOQ.G-Lvbq.zpUol7AmWZvqhYsln0ak91PHGmCEzJtLdqzR6A"
 bot = bridge.Bot(command_prefix="&", help_command=None, case_insensitive=True, intents=intents, sync_commands=True)
@@ -191,6 +191,15 @@ async def viewbase(ctx, player: discord.Member):
     else:
         await ctx.message.delete()
         await ctx.send(f"{ctx.author.mention}, {username}'s base is `{base['x']} {base['y']} {base['z']}` in the dimension `{base['dimension']}`.")
+        
+@bot.command()
+async def home(ctx):
+    server, userid, name, srvfolder, db = await get_info(ctx)
+    #fill custom nbt item placeholders
+    result = rcon.command(f"clear {name} ender_pearl{{}} 1")
+    if not "1" in result:
+        await ctx.respond("You don't have a base teleporter in your inventory.")
+        return
 
 #Database Commands
 @bot.command()
@@ -200,7 +209,8 @@ async def addserver(ctx):
     if os.path.exists(f"{path}/maindb.json"):
         await ctx.respond("This server is already active.")
         return
-    os.makedirs(path)
+    os.makedirs(f"{path}/Charities")
+    os.makedirs(f'{Dir}/web/css')
     open(f"{path}/banklog.txt", "x")
     open(f"{path}/prisonlog.txt", "x")
     open(f"{path}/rconlog.txt", "x")
@@ -209,6 +219,11 @@ async def addserver(ctx):
         data = {"Misc Data": {"day": 0, "inflation": 0, "ip": {"JIP": "Not Yet Setup", "BIP": "Not Yet Setup", "BP": 0}, "lotto": 0, "tax": 0}, "User Data": {}}
         json.dump(data, f)
         f.truncate()
+    open(f'{Dir}/web/css/data.json', 'x')
+    with open(f'{Dir}/web/css/data.json', 'r+') as d:
+        data = {"Misc Data": {"day": 0, "inflation": 0, "ip": {"JIP": "No", "BIP": "No", "BP": 0}, "lotto": 0, "tax": 0}, "User Data": {}}
+        json.dump(data, d)
+        d.truncate()
     await ctx.send("Server added!")
     
 @bot.command()
@@ -263,19 +278,19 @@ async def restoreserver(ctx, username, savename, resetname=None):
 @bot.command()
 @commands.has_role("Bot Admin")
 async def update(ctx):
-    server, userid, name, srvfolder, db = await get_info(ctx)
-    db = dict(db)
-    for player in db['User Data']:
-        global passes
-        passes = 0
-        global temp
-        temp = {}
-        for item in db['User Data'][player]['shop']:
-            passes += 1
-            value = db['User Data'][player]['shop'][item].split(":")[]
-            temp.update({item:{{"count": value, "nbt": ""}}})
-        db['User Data'][player]['shop'] = temp
-    await save_info(srvfolder, db=db)
+    # server, userid, name, srvfolder, db = await get_info(ctx)
+    # db = dict(db)
+    # for player in db['User Data']:
+    #     global passes
+    #     passes = 0
+    #     global temp
+    #     temp = {}
+    #     for item in db['User Data'][player]['shop']:
+    #         passes += 1
+    #         value = db['User Data'][player]['shop'][item].split(":")[0]
+    #         temp.update({item:{{"count": value, "nbt": ""}}})
+    #     db['User Data'][player]['shop'] = temp
+    # await save_info(srvfolder, db=db)
     await ctx.respond("Updated")
         
 @bot.command()
@@ -428,8 +443,69 @@ async def buy(ctx, seller: typing.Optional[discord.Member], amount: typing.Optio
     await change_inflation(srvfolder, db)
 
 @bot.command()
-async def charity(ctx, option1, name=None, option2=None, person: typing.Optional[discord.Member]=None, *, option3=None):
-    pass
+async def charity(ctx, option1, charity=None, option2=None, person: typing.Optional[discord.Member]=None, *, option3=None):
+    server, userid, name, srvfolder, db = await get_info(ctx)
+    basecmd, fcharity = option1.lower(), charity.lower().replace(" ", "_")
+    options, cpath = ["create", "donate", "edit", "give", "info", "list", "pause", "remove", "resume"], f"{srvfolder}/Charities/{fcharity}.json"
+    async def save_charity(cname, cdata):
+        with open(f"{srvfolder}/Charities/{cname}.json", "r+") as f:
+            f.seek(0)
+            json.dump(cdata, f)
+            f.truncate()
+    async def load_charity(cname):
+        try:
+            with open(f"{srvfolder}/Charities/{cname}.json", "r+") as f:
+                data = json.load(f)
+                return data
+        except:
+            await ctx.respond(f"The charity \"{charity}\" does not exist. Check your spelling and try again.")
+    if not basecmd in options:
+        await ctx.respond("That wasn't a charity option. View https://someminegame.com/Main/Commands/charity for more info on this feature's usage.")
+        return
+    if basecmd == "create":
+        try:
+            open(cpath, "x")
+        except:
+            await ctx.respond("That charity is already active. Please choose a different name.")
+            return
+        if option2 or option3 == None:
+            await ctx.respond("You need a goal and a description.")
+            return
+        sdata = {"organizer": userid, "name": name, "cause": option3, "raised": 0, "goal": option2.replace(",", ''), "donations": 0, "funds": 0, "distributed": 0, "active": True, "activatable": True}
+        await save_charity(fcharity, sdata)
+        await ctx.respond(f"Charity `{charity}` has been created!")
+    elif basecmd == "donate":
+        try:
+            amount = float(round(option2,2))
+        except:
+            await ctx.respond("option2 must be a number.")
+            return
+        if db['User Data'][userid]['economy']['money'] < amount:
+            await ctx.respond("You don't have enough cash for this. Try withdrawing some!")
+            return
+        cinfo = await load_charity(fcharity)
+        cinfo['raised'] += amount
+        cinfo['funds'] += amount
+        cinfo['donations'] += 1
+        await save_charity(fcharity)
+        db['User Data'][userid]['economy']['money'] -= amount
+        await save_info(srvfolder, blog=f"{name} donated ${amount} to {fcharity}")
+        await ctx.respond("Donation successful. Thanks for supporting your fellow members!")
+    elif basecmd == "edit":
+        pass
+    elif basecmd == "give":
+        pass
+    elif basecmd == "info":
+        cinfo = await load_charity(fcharity)
+        
+    elif basecmd == "list":
+        pass
+    elif basecmd == "pause":
+        pass
+    elif basecmd == "remove":
+        pass
+    elif basecmd == "resume":
+        pass
 
 @bot.command()
 async def clockin(ctx):
@@ -664,26 +740,51 @@ async def removemoney(ctx, player: discord.Member, amount: float):
     await ctx.message.delete()
 
 @bot.command()
-async def sell(ctx, amount: int = None, *, item: str):
+async def sell(ctx, amount: int = None, nbt = None, *, item: str = None):
     await ctx.send("This command is currently deactivated for an update.")
-    return
+    #return
     server, userid, name, srvfolder, db = await get_info(ctx)
-    output = await rcon.command(f"minecraft:clear {name} {item.replace(' ', '_')} {amount}")
-    ingamount = int(output.split()[1])
-    await ctx.message.delete()
     if not amount:
         amount = 1
-    if "No player was found" in output:
-        await ctx.respond("You need to be in Minecraft to run this command!")
-        return
-    elif ingamount < amount:
-        await rcon.command(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
-        await rcon.command(f'give {name} {item.replace(" ", "_")} {ingamount}')
-        return
+    if nbt != None and item != None:
+        output = await rcon.command(f"minecraft:data get {name} SelectedItem")
+        nbts = output.split("has the following entity data:")[1].replace("'{","{").replace("}'","}")
+        data_string = re.sub(r'(\d+)([bslfd])', r'\1', nbts)
+        data_string = re.sub(r'\b(?!minecraft\b)(\w+)(?=\s*):', r'"\1":', data_string)
+        nbts = json.dumps(data_string, sort_keys=True)
+        nbt=json.loads(json.loads(nbts))
+        ingamount = nbt['count']
+        item = nbt['id'].split(":")[1].replace('_', ' ')
+    else:
+        output = await rcon.command(f"minecraft:clear {name} {item.replace(' ', '_')} {amount}")
+        ingamount = int(output.split()[1])
+        if ingamount < amount:
+            await rcon.command(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
+            await rcon.command(f'give {name} {item.replace(" ", "_")} {ingamount}')
+            return
     try:
         db['User Data'][userid]['shop'][item.title()] += amount
     except:
         db['User Data'][userid]['shop'].update({item.title(): amount})
+    await ctx.message.delete()
+    if "No player was found" in output:
+        await ctx.respond("You need to be in Minecraft to run this command!")
+        return
+    shop = db['User Data'][userid]['Shop']
+    if ingamount < amount:
+        print(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
+    if not item.title() in shop:
+        shop[item.title()] = [0]
+    exists = False
+    for i in shop[item.title()]:
+        if nbt == i:
+            i['count'] += amount
+            exists=True
+            break
+    if not exists:
+        shop[item.title()].insert(-1, nbt)
+    shop[item.title()][-1] += amount
+    db['User Data'][userid]['Shop'] = shop
     await rcon.command(f'tellraw {name} ["",{{"text":"You added ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}},{{"text":" to your shop.","color":"gray"}}]')
     await save_info(srvfolder, blog=f"{name} added {amount:,} of {item.title()} to their shop", db=db)
 
@@ -898,7 +999,7 @@ async def scam(ctx):
 
 @bot.bridge_command()
 async def status(ctx):
-    local = minestat.MineStat('192.168.1.64', 25564)
+    local = minestat.MineStat('10.0.0.64', 25564)
     Global = minestat.MineStat('java.someminegame.net', 25565, query_protocol="All")
     if local.online == True and Global.online == True:
         message = "online, and is"
