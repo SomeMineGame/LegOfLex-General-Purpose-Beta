@@ -741,38 +741,30 @@ async def removemoney(ctx, player: discord.Member, amount: float):
 
 @bot.command()
 async def sell(ctx, amount: int = None, nbt = None, *, item: str = None):
-    await ctx.send("This command is currently deactivated for an update.")
-    #return
     server, userid, name, srvfolder, db = await get_info(ctx)
     if not amount:
         amount = 1
-    if nbt != None and item != None:
-        output = await rcon.command(f"minecraft:data get {name} SelectedItem")
+    if nbt != None and item == None:
+        output = await rcon.command(f"data get entity {name} SelectedItem")
         nbts = output.split("has the following entity data:")[1].replace("'{","{").replace("}'","}")
         data_string = re.sub(r'(\d+)([bslfd])', r'\1', nbts)
         data_string = re.sub(r'\b(?!minecraft\b)(\w+)(?=\s*):', r'"\1":', data_string)
         nbts = json.dumps(data_string, sort_keys=True)
         nbt=json.loads(json.loads(nbts))
         ingamount = nbt['count']
+        if ingamount < amount:
+            await rcon.command(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
         item = nbt['id'].split(":")[1].replace('_', ' ')
     else:
-        output = await rcon.command(f"minecraft:clear {name} {item.replace(' ', '_')} {amount}")
-        ingamount = int(output.split()[1])
+        output = await rcon.command(f"clear {name} {item.replace(' ', '_')} {amount}")
         if ingamount < amount:
             await rcon.command(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
             await rcon.command(f'give {name} {item.replace(" ", "_")} {ingamount}')
             return
-    try:
-        db['User Data'][userid]['shop'][item.title()] += amount
-    except:
-        db['User Data'][userid]['shop'].update({item.title(): amount})
-    await ctx.message.delete()
     if "No player was found" in output:
         await ctx.respond("You need to be in Minecraft to run this command!")
         return
-    shop = db['User Data'][userid]['Shop']
-    if ingamount < amount:
-        print(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
+    shop = db['User Data'][userid]['shop']
     if not item.title() in shop:
         shop[item.title()] = [0]
     exists = False
@@ -784,7 +776,8 @@ async def sell(ctx, amount: int = None, nbt = None, *, item: str = None):
     if not exists:
         shop[item.title()].insert(-1, nbt)
     shop[item.title()][-1] += amount
-    db['User Data'][userid]['Shop'] = shop
+    db['User Data'][userid]['shop'] = shop
+    await rcon.command(f'item replace entity {name} weapon.mainhand with air')
     await rcon.command(f'tellraw {name} ["",{{"text":"You added ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}},{{"text":" to your shop.","color":"gray"}}]')
     await save_info(srvfolder, blog=f"{name} added {amount:,} of {item.title()} to their shop", db=db)
 
@@ -930,7 +923,7 @@ async def cmd(ctx, *, command):
 
 @bot.bridge_command()
 async def day(ctx):
-    output = await rcon.command(f"minecraft:time query day")
+    output = await rcon.command(f"time query day")
     command = output.split(' ')
     day = command[-1]
     await ctx.respond(f"The current day is {day}")
@@ -993,9 +986,9 @@ async def poll(ctx, title: str, message: str, *options):
 @bot.bridge_command()
 @commands.dm_only()
 async def scam(ctx):
-    output = await rcon.command("minecraft:clear SomeMineGame sugar")
+    output = await rcon.command("clear SomeMineGame sugar")
     amount = int(str(output).split(" ")[1])
-    await rcon.command(f'minecraft:give SomeMineGame minecraft:sugar{{display:{{Name:\'["",{{"text":"Cocaine","italic":false,"color":"aqua"}}]\',Lore:[\'["",{{"text":"Purest Authentic Quality","italic":false,"color":"green"}}]\']}}}} {amount}')
+    await rcon.command(f'give SomeMineGame minecraft:sugar{{display:{{Name:\'["",{{"text":"Cocaine","italic":false,"color":"aqua"}}]\',Lore:[\'["",{{"text":"Purest Authentic Quality","italic":false,"color":"green"}}]\']}}}} {amount}')
 
 @bot.bridge_command()
 async def status(ctx):
@@ -1020,7 +1013,7 @@ async def addsentence(ctx, player: discord.Member, length: int, *, reason: str):
     server, userid, name, srvfolder, db = await get_info(ctx)
     playerid, username = await get_user_info(player)
     prison = db['User Data'][playerid]['prison']
-    output = await rcon.command(f"minecraft:time query day")
+    output = await rcon.command(f"time query day")
     command = output.split(' ')
     day = int(command[-1])
     release = round(day+length)
@@ -1059,7 +1052,7 @@ async def releaseprisoner(ctx, player: discord.Member):
     server, userid, name, srvfolder, db = await get_info(ctx)
     playerid, username = await get_user_info(player)
     prison = db['User Data'][playerid]['prison']
-    output = await rcon.command(f"minecraft:time query day")
+    output = await rcon.command(f"time query day")
     command = output.split(' ')
     day = int(command[-1])
     if prison['status'] == "Released":
