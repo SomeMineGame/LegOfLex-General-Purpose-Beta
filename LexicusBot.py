@@ -94,7 +94,10 @@ async def change_inflation(srvfolder, db):
             temp=temp+1
         except:
             pass
-    averagebal=round(totalmoney/(len(datalist)-emptyuser),4)
+    if totalmoney == 0:
+        averagebal = 0
+    else:
+        averagebal=round(totalmoney/(len(datalist)-emptyuser),4)
     if averagebal >= 0:
         inflation = round((averagebal/50000)**.25,4)
     else:
@@ -277,7 +280,6 @@ async def addserver(i: di):
         await i.response.send_message("This server is already active.")
         return
     os.makedirs(f"{path}/ResetData")
-    os.makedirs(f'{Dir}/web/css')
     await add_files(path)
     await i.response.send_message("Server added!")
     
@@ -792,18 +794,23 @@ async def sell(i: di, item: str, amount: int = 1, mode: typing.Literal["Basic", 
     if "player not found" in online:
         await i.response.send_message("You need to be on Minecraft to use this feature.", ephemeral=True)
     async def get_amount(ID, snbt):
-        #output = await rcon.command(f"clear {name} {ID}{snbt} 0")
-        output = "Found 5 items on SomeMineGame"
+        output = await rcon.command(f"clear {name} {ID}{snbt} 0")
         try:
             possession = int(output.split(" ")[1])
             return possession
         except:
             await i.response.send_message(f"You don't have any of **{item}**.", ephemeral=True)
+            return
     if amount < 1:
         await i.response.send_message("You can't sell less than 1 item silly!")
         return
     if mode == 'Basic':
-        snbt, ID = f"minecraft:{itemf}[minecraft:enchantments={{}},!minecraft:custom_name,!minecraft:lodestone_tracker,!minecraft:unbreakable,minecraft:container=[]|minecraft:bundle_contents=[]]", ""
+        containers, container = ['shulker_box', 'bundle'], "]"
+        for f in containers:
+            if f in itemf:
+                container = ",minecraft:container=[]|minecraft:bundle_contents=[]]"
+                break
+        snbt, ID = f"minecraft:{itemf}[minecraft:enchantments={{}},!minecraft:custom_name,!minecraft:lodestone_tracker,!minecraft:unbreakable,!minecraft:map_id{container}", ""
     elif mode == 'Holding':
         await i.response.send_message(f"This feature needs to be researched further. Check back later!")
         return
@@ -820,6 +827,7 @@ async def sell(i: di, item: str, amount: int = 1, mode: typing.Literal["Basic", 
     if possession < amount:
         await i.response.send_message(f"You do not have enough of **{item}**!", ephemeral=True)
         return
+    await rcon.command(f'clear {name} {ID}{snbt} {amount}')
     shop = db['User Data'][str(userid)]['shop']
     if not item in shop:
         shop[item] = {"count": 0, "vars": {'nonbt': 0}}
@@ -983,17 +991,17 @@ async def help(i: di, command:str=None):
 async def ip(i: di, jip:str=None, bip:str=None, bp:int=None):
     server, userid, name, srvfolder, db = await get_info(i)
     ips = db['Misc Data']['ip']
-    if not jip:
-        await i.response.send_message(f"The server IPs are\n\n Java: `{ips['JIP']}`\nBedrock: `{ips['BIP']}      {ips['BP']}`")
+    if not jip and not bip and not bp:
+        await i.response.send_message(f"The server IPs are\n\n**Java:** `{ips['JIP']}`\n**Bedrock**: `{ips['BIP']}     Port: {ips['BP']}`")
         return
     roles = i.user.roles
-    admin = discord.utils.get(i.message.guild.roles, name='Bot Admin')
+    admin = discord.utils.get(i.user.guild.roles, name='Bot Admin')
     if not admin in roles:
         await i.response.send_message("You need to be a Bot Admin to change this setting.")
         return
-    if not BP:
-        BP = 19132
-    await i.response.send_message("The ports have been changed.")
+    if not bp:
+        bp = 19132
+    await i.response.send_message("The IPs have been changed.")
     ips['JIP'], ips['BIP'], ips['BP'] = jip, bip, bp
     db['Misc Data']['ip'] = ips
     await save_info(srvfolder, db=db)
