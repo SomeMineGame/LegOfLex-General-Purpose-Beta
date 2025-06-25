@@ -600,6 +600,7 @@ async def clockout(i: di):
     earnings = round(mathstuff-tax, 2)
     economy['bank'], economy['clockout'], economy['clockin'] = round(economy['bank']+earnings, 2), timestamp, 0
     db['User Data'][userid]['economy'] = economy
+    db['Misc Data']['tax'] += tax
     await save_info(srvfolder, blog=f"{name} clocked out of work and was paid ${earnings:,}")
     await change_inflation(srvfolder, db)
     await i.response.send_message("You clocked out of work!")
