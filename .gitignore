@@ -1,7 +1,8 @@
 /discord
 test.py
-secrets_hehe.py
+/discord_extras/secrets_hehe.py
 /__pycache__
+/discord_extras/__pycache__
 /.vscode
 /web
 cords.py
