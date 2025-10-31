@@ -29,6 +29,7 @@ class timers():
                                 await channel.send(f"{guild.get_member(int(player)).mention}, you have been clocked out automatically.")
                                 await cr.save.change_inflation(Dir, f"{Dir}/discord/{q}", data)
                                 await cr.save.save_info(Dir, f"{Dir}/discord/{q}", blog, data)
+            break
                                 
     async def checkstat(client:discord.client, Dir, rcon: asyncrcon.AsyncRCON):  
         global Worked
