@@ -1,4 +1,5 @@
 import json, asyncrcon, datetime, json, discord, os, shutil
+from discord import app_commands
 di = discord.Interaction
 
 class files():
@@ -121,3 +122,18 @@ class load():
         if not username:
             username = user.display_name
         return playerid, username
+    
+    class prices():
+        async def data(Dir:str):
+            with open(f"{Dir}/discord/Prices.json", "r+") as f:
+                return json.load(f)
+        
+        async def ListFormat(Dir:str):
+            return list((await load.prices.data(Dir)).keys())
+
+async def load_prices_AutoComplete(interaction: di, current: str):
+    items = []
+    for item in await load.prices.ListFormat(os.getcwd()):
+        if current.title().strip() in item[:len(current.strip())]:
+            items.append(app_commands.Choice(name=item, value=item))
+    return items[:10]

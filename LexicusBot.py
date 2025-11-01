@@ -1,8 +1,9 @@
 import os, discord, json, datetime, typing, random, time, shutil, sys, calendar, asyncio, minestat, re, aiohttp, nbtlib
-import discord_extras.secrets_hehe as sr
+import discord_extras.bot as bt
 import discord_extras.common_resources as cr
 import discord_extras.timers as timers
 import discord_extras.nbt_json_utils as nbt_json_utils
+import discord_extras.xuid as xuid
 from asyncrcon import AsyncRCON
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -19,11 +20,11 @@ intents.guilds = True
 client = discord.Client(intents=intents, help_command=None)
 bot = app_commands.CommandTree(client)
 
-AsyncRCON.__init__(AsyncRCON, sr.MC.ip, sr.MC.password, max_command_retries=1)
-rcon = AsyncRCON(sr.MC.ip, sr.MC.password)
+AsyncRCON.__init__(AsyncRCON, bt.MC.ip, bt.MC.password, max_command_retries=1)
+rcon = AsyncRCON(bt.MC.ip, bt.MC.password)
 
 @client.event
-async def on_member_join(member):
+async def on_member_join(member: discord.Member):
     role = discord.utils.get(member.guild.roles, name="Applicant")
     await member.add_roles(role)
                             
@@ -273,6 +274,7 @@ async def bank(i: di, transaction: typing.Literal['Deposit', 'Withdraw', 'View']
         await i.response.send_message("The options for this command are `deposit <amount>`, `withdrawal <amount>`, or `view`. *Replace `<amount>` with the number you want.*")
 
 @bot.command(description="Buy an item in Minecraft from the shop")
+@app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def buy(i: di, seller: typing.Optional[discord.Member], item: str, id: typing.Optional[int] = None, amount: int = 1):
     server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
     economy, inflation, Id = db['User Data'][userid]['economy'], db['Misc Data']['inflation'], id-1
@@ -605,6 +607,7 @@ async def paygovt(i: di, amount: float, reason: typing.Optional[str]):
     await cr.save.change_inflation(DIR, srvfolder, db)
 
 @bot.command(description="Get the price of an item")
+@app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def price(i: di, amount: typing.Optional[int] = None, *, item: str):
     server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
     with open(f"{DIR}/discord/Prices.json", "r+") as f:
@@ -637,6 +640,7 @@ async def removemoney(i: di, player: discord.Member, amount: float):
     await cr.save.save_info(DIR, srvfolder, blog=f"Removed ${round(amount,2):,} from {player.nick}'s bank account.", db=db)
 
 @bot.command(description="Adds an item to your shop. Basic and All modes don't preserve the nbt data.")
+@app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def sell(i: di, item: str, amount: int = 1, mode: typing.Literal["Basic", "Holding", "All"] = "Basic"):
     server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
     item, itemf = item.title(), item.lower().replace(" ", "_")
@@ -698,6 +702,7 @@ async def setmoney(i: di, player: discord.Member, amount: float):
     i.response.send_message(f"Set {username}'s bank account to **${round(amount),2}**.")
     
 @bot.command(description="View shops or remove an item from your own")
+@app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def shop(i: di, option:typing.Literal['Get', 'Remove'], player: typing.Optional[discord.Member] = None, amount: typing.Optional[int] = 1, *, item: str = None):
     server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
     playerid, username = await cr.load.get_user_info(player) 
@@ -759,8 +764,9 @@ async def taxpay(i: di, player: discord.Member, amount: float, *, reason: str = 
     await cr.save.save_info(DIR, srvfolder, blog=blog)
     await cr.save.change_inflation(DIR, srvfolder, db)
 
-@bot.command(description="Buy unobtainable items")
-async def voidbuy(i: di, item: typing.Literal["Bedrock", "Dragon Egg", "Reinforced Deepslate", "Spawner"], amount: typing.Optional[int] = 1):
+@bot.command(description="Buy from the void. Gives you any item")
+@app_commands.autocomplete(item=cr.load_prices_AutoComplete)
+async def voidbuy(i: di, item: str, amount: typing.Optional[int] = 1):
     server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
     economy, inflation = db['User Data'][userid]['economy'], db['Misc Data']['inflation']
     with open(f"{DIR}/discord/Prices.json", "r+") as f:
@@ -880,8 +886,8 @@ async def setup_channel_roles(i: di):
 @bot.command(description="Tests if the Minecraft server is responding")
 async def status(i: di):
     await i.response.send_message("Pinging the server...")
-    local = minestat.MineStat(sr.MC.local_domain, sr.MC.local_query)
-    Global = minestat.MineStat(sr.MC.global_domain, 25565)
+    local = minestat.MineStat(bt.MC.local_domain, bt.MC.local_query)
+    Global = minestat.MineStat(bt.MC.global_domain, 25565)
     if local.online == True and Global.online == True:
         message = "online, and is"
     elif local.online == True and Global.online == False:
@@ -995,4 +1001,4 @@ async def viewsentence(i: di, player: discord.Member):
     embed.add_field(name="Reason", value=prison['reason'], inline=True)
     await i.response.send_message(embed=embed)
 
-client.run(sr.token)
+client.run(bt.token)

@@ -1,5 +1,5 @@
 import json, asyncrcon, os, datetime, discord
-from . import secrets_hehe as sr
+from . import bot as bt
 from . import common_resources as cr
 
 global Worked
