@@ -1,4 +1,4 @@
-import os, discord, json, datetime, typing, random, time, shutil, sys, calendar, asyncio, minestat, re, aiohttp, nbtlib
+import os, discord, json, datetime, typing, random, asyncio, minestat, re
 import discord_extras.bot as bt
 import discord_extras.common_resources as cr
 import discord_extras.timers as timers
@@ -159,6 +159,7 @@ async def addserver(i: di):
     await i.response.send_message("Server added!")
     
 @bot.command(description="Adds a player to the database")
+@commands.has_role("Bot Admin")
 async def adduser(i: di, user: discord.Member):
     server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
     playerid, username = await cr.load.get_user_info(user) 
@@ -169,21 +170,6 @@ async def adduser(i: di, user: discord.Member):
         db['User Data'].update(data)
         await cr.save.save_info(DIR, srvfolder, db=db)
         await i.response.send_message(f"Added {username} to the database!")
-        
-@bot.command(description="Changes a player's nickname")
-async def changeusername(i: di, mcuser: discord.Member):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(mcuser) 
-    if playerid != userid:
-        await i.response.send_message("You can only run this command on yourself.")
-        return
-    db['User Data'][userid]['prison']["player"] = name
-    await cr.save.save_info(DIR, srvfolder, db=db)
-
-@changeusername.error
-async def changeusername_error(i: di, error):
-    if isinstance(error, commands.BadArgument):
-        await i.response.send_message("No user with that name found. Make sure to set your nickname in Discord to that of your new Minecraft username.")
 
 @bot.command(description="Lists past server resets")
 @commands.has_role("Bot Admin")
@@ -198,6 +184,66 @@ async def listoldservers(i: di):
             message+=dir
     message+="```"
     await i.response.send_message(message)
+    
+@bot.command(description="Adds you to the whitelist and database")
+async def register(i: di, username: str, platform: typing.Literal['Java', 'Bedrock']):
+    await i.response.defer()
+    for user in i.channel.members.remove(i.user):
+        if (user.nick or user.name).lower() == (username.lower() or f".{username.lower()}"):
+            await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect.")
+            return
+    if platform == 'Bedrock':
+        for user in i.channel.members:
+            if (user.nick or user.name).lower() == f".{username.lower()}":
+                await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect.")
+                return
+        try:
+            uuid, gamertag = xuid.get(target_gamertag = username)
+            if uuid == None:
+                await i.followup.send("That gamertag doesn't exist. Check your spelling.")
+                return
+        except:
+            await i.followup.send("That gamertag doesn't exist. Check your spelling.")
+            return
+        username = f".{gamertag}"
+        output = await rcon.command(f"fwhitelist add 00000000-0000-0000-000{uuid[0]}-{uuid[1:]}")
+        if "unable to find any" in output:
+            await i.followup.send("There was an issue adding your name. Check your spelling and try again, or message a moderator to help.")
+            return
+        else:
+            pass
+    else:
+        for user in i.channel.members:
+            if (user.nick or user.name).lower() == username.lower():
+                await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect.")
+                return
+        output = await rcon.command(f"whitelist add {username}")
+        if "not exist" in output:
+            await i.followup.send(f"There was an issue adding your name. Check your spelling and try again, or message a moderator to help.")
+            return
+        else:
+            username = output.split(" ")[1]
+    await i.guild.get_channel(bt.IDS.whitelist).send(f"Added `{username}` to the whitelist. Old name: {i.user.nick}")
+    try:
+        if i.user.nick[0] == ".":
+            await rcon.command(f"fwhitelist remove {i.user.nick}")
+        else:
+            await rcon.command(f"whitelist remove {i.user.nick}")
+    except:
+        pass
+    playername = username
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    playerid, username = await cr.load.get_user_info(user)
+    await i.user.edit(nick=username)
+    if str(playerid) in db['User Data']:
+        db['User Data'][userid]['prison']['player'] = playername
+        await cr.save.save_info(DIR, srvfolder, db=db)
+        await i.followup.send(f"Your username has been updated to {playername}")
+    else:
+        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{playername}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
+        db['User Data'].update(data)
+        await cr.save.save_info(DIR, srvfolder, db=db)
+        await i.followup.send(f"You have been whitelisted and added to the database for access to the features!\n`Username: {playername}`")
 
 @bot.command(description="Resets a server's files")
 @commands.has_role("Server Owner")

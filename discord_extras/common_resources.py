@@ -1,4 +1,4 @@
-import json, asyncrcon, datetime, json, discord, os, shutil
+import json, datetime, json, discord, os, shutil
 from discord import app_commands
 di = discord.Interaction
 
