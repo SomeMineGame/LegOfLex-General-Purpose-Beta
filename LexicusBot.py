@@ -27,66 +27,22 @@ rcon = AsyncRCON(bt.MC.rcon, bt.MC.password)
 async def on_member_join(member: discord.Member):
     role = discord.utils.get(member.guild.roles, name="Applicant")
     await member.add_roles(role)
-                            
+  
+@tasks.loop(seconds=5)
+async def mc_irl_time():
+    await timers.timers.mc_irl_time(rcon)
+    
+@tasks.loop(seconds=5)
+async def permit_removal():
+    await timers.timers.permit_removal(DIR)
+                           
 @client.event
 async def on_ready():
     await client.change_presence(status=discord.Status.online, activity=discord.Game(name="Use /help for the wiki!"))
     await rcon.open_connection()
-    autoclockout.start()
-    checkstat.start()
+    mc_irl_time.start()
+    permit_removal.start()
     print("LOL bot online!")
-    
-channel = 1407384861680861256
-reactiona = "⚠"
-reactionb = "🛠"
-reactionc = "🖥"
-reactiond = "🔔"
-    
-@client.event
-async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    if payload.channel_id == channel:
-        if str(payload.emoji) == reactiona:
-            Testing = discord.utils.get(payload.member.guild.roles, name="Testing")
-            await payload.member.add_roles(Testing)
-        elif str(payload.emoji) == reactionb:
-            Builds = discord.utils.get(payload.member.guild.roles, name="Builds")
-            await payload.member.add_roles(Builds)
-        elif str(payload.emoji) == reactionc:
-            Vids = discord.utils.get(payload.member.guild.roles, name="Vids")
-            await payload.member.add_roles(Vids)
-        elif str(payload.emoji) == reactiond:
-            Notices = discord.utils.get(payload.member.guild.roles, name="Notices")
-            await payload.member.add_roles(Notices)
-    else:
-        return
-    
-@client.event
-async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
-    guild = client.get_guild(payload.guild_id)
-    member = guild.get_member(payload.user_id)
-    if payload.channel_id == channel:
-        if str(payload.emoji) == reactiona:
-            Testing = discord.utils.get(member.guild.roles, name="Testing")
-            await member.remove_roles(Testing)
-        elif str(payload.emoji) == reactionb:
-            Builds = discord.utils.get(member.guild.roles, name="Builds")
-            await member.remove_roles(Builds)
-        elif str(payload.emoji) == reactionc:
-            Vids = discord.utils.get(member.guild.roles, name="Vids")
-            await member.remove_roles(Vids)
-        elif str(payload.emoji) == Vids:
-            Notices = discord.utils.get(member.guild.roles, name="Notices")
-            await member.remove_roles(Notices)
-    else:
-        return
-    
-@tasks.loop(minutes=5)
-async def autoclockout():
-    await timers.timers.autoclockout(client, DIR, rcon)
-                            
-@tasks.loop(seconds=10)
-async def checkstat():
-    await timers.timers.checkstat(client, DIR, rcon)
 
 #Base Commands
 @bot.command(description="Adds your base for others to see")
@@ -166,7 +122,7 @@ async def adduser(i: di, user: discord.Member):
     if str(playerid) in db['User Data']:
         await i.response.send_message(f"{username} is already added!")
     else:  
-        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{username}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
+        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": {"checking": 0, "savings": 0, "credit_card": 0, "loans": {}}, "cash": 0, "clockin": 0, "clockout": 0, "credit": 40}, "lotteries": 0, "Permits": {"Building": {"length": 0}, "Mining": {"length": 0}}, "prison": {"player": f"{username}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
         db['User Data'].update(data)
         await cr.save.save_info(DIR, srvfolder, db=db)
         await i.response.send_message(f"Added {username} to the database!")
@@ -651,6 +607,26 @@ async def paygovt(i: di, amount: float, reason: typing.Optional[str]):
     db['User Data'][userid]['economy'] =  economy
     await cr.save.save_info(DIR, srvfolder, blog=blog)
     await cr.save.change_inflation(DIR, srvfolder, db)
+    
+@bot.command(description="Buy a permit for a specific amount of months")
+async def permit(i: di, type: typing.Literal['Building', 'Mining'], length: int):
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    dt = datetime.datetime.now()
+    current = dt.strftime("%m-%d").replace("31", "30")
+    economy, inflation = db['User Data'][userid]['economy'], db['Misc Data']['inflation']
+    with open(f"{DIR}/discord/Prices.json", "r+") as f:
+        data = json.load(f)
+    cost = round((inflation*data['Permits'][type])*length,2)
+    inflated = round(cost*1.07, 2)
+    if economy['cash'] < inflated:
+        await i.response.send_message("You don't have enough money!", ephemeral=True)
+        return
+    db['Misc Data']['tax'] += cost*1.07
+    db['User Data'][userid]['economy']['cash'] -= inflated
+    db['User Data'][userid]['Permits'][type]['length'] += length
+    db['User Data'][userid]['Permits'][type]['last-removed'] = current
+    await cr.save.save_info(DIR, srvfolder, blog=f"{name} bought {type} Permit for {length} Months for ${inflated:,}, ${round(cost*.07, 2):,} of which was taxes.")
+    await cr.save.change_inflation(DIR, srvfolder, db)
 
 @bot.command(description="Get the price of an item")
 @app_commands.autocomplete(item=cr.load_prices_AutoComplete)
@@ -942,15 +918,6 @@ async def scam(i: di):
     output = await rcon.command(f"clear {username:10,.2f} sugar")
     amount = int(str(output).split(" ")[1])
     await i.response.send_message(f'give {username} minecraft:sugar{{display:{{Name:\'["",{{"text":"Cocaine","italic":false,"color":"aqua"}}]\',Lore:[\'["",{{"text":"Purest Authentic Quality","italic":false,"color":"green"}}]\']}}}} {amount}')
-    
-@bot.command()
-@commands.has_role("Bot Admin")
-async def setup_channel_roles(i: di):
-    msg = await i.channel.send("To help keep things organized, there are a few channels you need roles for. React to the role you want, and unreact to remove it again later.\n\n\n:warning: - Testing Server\n\n:tools: - Builds Server\n\n:desktop: - Videos (SomeMineGame & Playermade)\n\n:bell: - Notices (Status, Issues, Pings, & More)")
-    await msg.add_reaction(reactiona)
-    await msg.add_reaction(reactionb)
-    await msg.add_reaction(reactionc)
-    await msg.add_reaction(reactiond)
 
 @bot.command(description="Tests if the Minecraft server is responding")
 async def status(i: di):
