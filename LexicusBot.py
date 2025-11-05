@@ -20,8 +20,8 @@ intents.guilds = True
 client = discord.Client(intents=intents, help_command=None)
 bot = app_commands.CommandTree(client)
 
-AsyncRCON.__init__(AsyncRCON, bt.MC.ip, bt.MC.password, max_command_retries=1)
-rcon = AsyncRCON(bt.MC.ip, bt.MC.password)
+AsyncRCON.__init__(AsyncRCON, bt.MC.rcon, bt.MC.password, max_command_retries=1)
+rcon = AsyncRCON(bt.MC.rcon, bt.MC.password)
 
 @client.event
 async def on_member_join(member: discord.Member):
@@ -813,7 +813,7 @@ async def taxpay(i: di, player: discord.Member, amount: float, *, reason: str = 
 @bot.command(description="Buy from the void. Gives you any item")
 @app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def voidbuy(i: di, item: str, amount: typing.Optional[int] = 1):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i)
     economy, inflation = db['User Data'][userid]['economy'], db['Misc Data']['inflation']
     with open(f"{DIR}/discord/Prices.json", "r+") as f:
         data = json.load(f)
@@ -824,13 +824,37 @@ async def voidbuy(i: di, item: str, amount: typing.Optional[int] = 1):
         return
     output = await rcon.command(f"give {name} {item.replace(' ', '_')} {amount}")
     if "No player was found" in output:
-        await i.response.send_message("You need to be in Minecraft to run this command!")
+        await i.response.send_message("You need to be in Minecraft to run this command!", ephemeral=True)
         return
     db['Misc Data']['tax'] += cost*.07
     db['User Data'][userid]['economy']['money'] -= inflated
     await rcon.command(f'tellraw {name} ["",{{"text":"You paid","color":"gray"}},{{"text":" ${inflated:,}","color":"green"}},{{"text":" for ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}}]')
-    await cr.save.save_info(DIR, srvfolder, blog=f"{name} bought {amount} of {item} for ${inflated:,}, ${round(cost*.07, 2):,} of which was taxes.")
-    await cr.save.change_inflation(DIR, srvfolder, db)
+    await cr.save.save_info(srvfolder, blog=f"{name} bought {amount} of {item} for ${inflated:,}, ${round(cost*.07, 2):,} of which was taxes.")
+    await cr.save.change_inflation(srvfolder, db)
+
+@bot.command(description="Sell to the void. Does not support NBT and reduced earnings.")
+@app_commands.autocomplete(item=cr.load_prices_AutoComplete)
+async def voidsell(i: di, item: str, amount: typing.Optional[int] = 1):
+    server, userid, name, srvfolder, db = await cr.load.get_info(i)
+    inflation = db['Misc Data']['inflation']
+    with open(f"{DIR}/discord/Prices.json", "r+") as f:
+        data = json.load(f)
+    output = await rcon.command(f"minecraft:clear {name} {item.replace(' ', '_')} {amount}")
+    ingamount = int(output.split()[1])
+    if "No player was found" in output:
+        await i.response.send_message("You need to be in Minecraft to run this command!", ephemeral=True)
+        return
+    elif ingamount < amount:
+        await rcon.command(f'tellraw {name} "You don\'t have enough of {item.title()}!"')
+        await rcon.command(f'give {name} {item.replace(" ", "_")} {ingamount}')
+        return
+    payment = round(((inflation*data[item.title()])*amount)/4, 2)
+    tax = round(payment*.05, 2)
+    db['Misc Data']['tax'] += tax
+    db['User Data'][userid]['economy']['money'] += payment*.95
+    await rcon.command(f'tellraw {name} ["",{{"text":"You made","color":"gray"}},{{"text":" ${round(payment*.95, 2):,}","color":"green"}},{{"text":" from ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}}]')
+    await cr.save.save_info(srvfolder, blog=f"{name} sold {amount:,} of {item.title()} for ${round(payment*.95, 2):,} and paid ${tax:,} in taxes")
+    await cr.save.change_inflation(srvfolder, db=db)
 
 @bot.command(description="View the top ten richest players")
 async def wealthy(i: di):
@@ -915,8 +939,7 @@ async def scam(i: di):
     if username != ("SomeMineGame" or "zoobleCar"):
         await i.response.send_message("I SAID, DON'T WORRY ABOUT IT.")
         return
-    #output = await rcon.command(f"clear {username:10,.2f} sugar")
-    output = "Cleared 10 items"
+    output = await rcon.command(f"clear {username:10,.2f} sugar")
     amount = int(str(output).split(" ")[1])
     await i.response.send_message(f'give {username} minecraft:sugar{{display:{{Name:\'["",{{"text":"Cocaine","italic":false,"color":"aqua"}}]\',Lore:[\'["",{{"text":"Purest Authentic Quality","italic":false,"color":"green"}}]\']}}}} {amount}')
     

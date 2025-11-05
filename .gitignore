@@ -6,3 +6,5 @@ test.py
 /.vscode
 /web
 cords.py
+cache.bin
+Chunks.py

@@ -65,3 +65,25 @@ class timers():
             # msg = await msg.send(f"The server is **accessible** again!")
             print(f"The server is **accessible** again!")
             # await msg.publish()
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+    
+    async def mc_irl_time(rcon: asyncrcon.AsyncRCON):
+        dt = datetime.datetime.now()
+        seconds = (dt - dt.replace(hour=0,minute=0,second=0)).total_seconds()
+        converted = (seconds/3.6)-6000
+        if converted < 0:
+            converted+=24000
+        try:
+            await rcon.command(f"time set {int(converted)}")
+        except:
+            pass

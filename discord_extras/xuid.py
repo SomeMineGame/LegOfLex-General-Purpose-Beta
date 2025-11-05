@@ -27,7 +27,8 @@ def get(target_gamertag):
                 "AuthMethod": "RPS",
                 "SiteName": "user.auth.xboxlive.com",
                 "RpsTicket": f"d={access_token}"}}
-        headers = {"x-xbl-contract-version": "1",
+        headers = {
+            "x-xbl-contract-version": "1",
             "Content-Type": "application/json"}
         response = requests.post(
             url="https://user.auth.xboxlive.com/user/authenticate",
@@ -79,7 +80,7 @@ def get(target_gamertag):
                     return hex(int(xuid))[2:], gamertag
     if os.path.exists(TOKEN_CACHE_PATH):
         with open(TOKEN_CACHE_PATH, "r") as token_cache_file:
-            cache.deserialize(token_cache_file.read())     
+            cache.deserialize(token_cache_file.read())
     atexit.register(save_cache)
     app = PublicClientApplication(
         CLIENT_ID,
@@ -96,7 +97,7 @@ def get(target_gamertag):
         if ticket:
             user_token = ticket.get('Token')
             user_hash = ticket.get('DisplayClaims', {}).get('xui', [{}])[0].get('uhs')
-            xsts_ticket = request_xsts_token(user_token)
+            xsts_ticket = request_xsts_token(user_token)        
             if xsts_ticket:
                 xsts_token = xsts_ticket.get('Token')
                 xbl_token = f'XBL{XBL_VERSION} x={user_hash};{xsts_token}'
