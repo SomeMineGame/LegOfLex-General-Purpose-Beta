@@ -1,4 +1,4 @@
-import json, datetime, json, discord, os, shutil
+import json, datetime, json, discord, os, shutil, math
 from discord import app_commands
 di = discord.Interaction
 
@@ -29,6 +29,7 @@ class files():
         if not resetname:
             dt = datetime.datetime.now()
             resetname = dt.strftime("%B %d, %Y")
+        resetname = resetname.lower()
         try:
             oldfolder = f"{srvfolder}/ResetData/{resetname}"
             os.makedirs(oldfolder)
@@ -107,6 +108,12 @@ class save():
         db['Misc Data']['inflation'] = inflation
         await save.save_info(Dir, srvfolder, blog=f"Inflation rate changed to {round(inflation*100,2):,}%", db=db)
         
+    async def save_charity(srvfolder, cname, cdata):
+        with open(f"{srvfolder}/Charities/{cname}.json", "r+") as f:
+            f.seek(0)
+            json.dump(cdata, f)
+            f.truncate()
+        
 class load():   
     async def get_info(i: di, Dir: str):
         server, userid, name = i.guild.id, str(i.user.id), i.user.nick
@@ -130,6 +137,16 @@ class load():
         
         async def ListFormat(Dir:str):
             return list((await load.prices.data(Dir)).keys())
+        
+    class charity():
+        async def charities(Dir:str):
+            for (_, _, files) in os.walk(Dir):
+                return files
+        
+    async def load_charity(srvfolder, cname):
+        with open(f"{srvfolder}/Charities/{cname}.json", "r+") as f:
+            data = json.load(f)
+            return data
 
 async def load_prices_AutoComplete(interaction: di, current: str):
     items = []
@@ -137,3 +154,39 @@ async def load_prices_AutoComplete(interaction: di, current: str):
         if current.title().strip() in item[:len(current.strip())]:
             items.append(app_commands.Choice(name=item, value=item))
     return items[:10]
+
+async def charity_action_Autocomplete(interaction: di, current: str):
+    actions = ["create", "donate", "edit", "give", "info", "list", "pause", "remove", "resume"]
+    matches = []
+    for action in actions:
+        if current.lower().strip() in action[:len(current.strip())]:
+            matches.append(app_commands.Choice(name=action, value=action))
+    return matches
+
+async def load_charity_AutoComplete(interaction: di, current: str):
+    charities = []
+    Dir = f"{os.getcwd()}/Discord/{interaction.guild_id}/Charities"
+    for charity in await load.charity.charities(Dir):
+        if current.title().strip() in charity[:-5][:len(current.strip())]:
+            charities.append(app_commands.Choice(name=charity, value=charity))
+    return charities[:10]
+
+async def charity_recipient_AutoComplete(interaction: di, current: str):
+    recipients = []
+    charities = await load_charity_AutoComplete()
+    with open(f"{os.getcwd()}/Discord/{interaction.guild_id}/Charities", 'r') as f:
+        data = json.load(f)
+    for charity in charities:
+        recipients.append(f"{charity} - C")
+    for id in data['User Data']:
+        member = interaction.guild.get_member(id)
+        name = member.nick
+        if not name:
+            name = member.display_name
+        recipients.append(f"{name} - P")
+    recipients.sort()
+    return recipients[:10]
+
+async def round(number:float):
+    '''Truncates a number to two decimal places.\nDoes not round.'''
+    return ((math.trunc(100*number))/100)
