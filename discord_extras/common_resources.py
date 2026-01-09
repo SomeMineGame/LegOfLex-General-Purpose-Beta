@@ -1,4 +1,4 @@
-import json, datetime, json, discord, os, shutil, math
+import json, datetime, json, discord, os, shutil
 from discord import app_commands
 di = discord.Interaction
 
@@ -186,7 +186,3 @@ async def charity_recipient_AutoComplete(interaction: di, current: str):
         recipients.append(f"{name} - P")
     recipients.sort()
     return recipients[:10]
-
-async def round(number:float):
-    '''Truncates a number to two decimal places.\nDoes not round.'''
-    return ((math.trunc(100*number))/100)
