@@ -53,41 +53,39 @@ reactiond = "🔔"
 
 @client.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    if payload.channel_id == channel:
-        if str(payload.emoji) == reactiona:
-            Testing = discord.utils.get(payload.member.guild.roles, name="Testing")
-            await payload.member.add_roles(Testing)
-        elif str(payload.emoji) == reactionb:
-            Builds = discord.utils.get(payload.member.guild.roles, name="Builds")
-            await payload.member.add_roles(Builds)
-        elif str(payload.emoji) == reactionc:
-            Vids = discord.utils.get(payload.member.guild.roles, name="Vids")
-            await payload.member.add_roles(Vids)
-        elif str(payload.emoji) == reactiond:
-            Notices = discord.utils.get(payload.member.guild.roles, name="Notices")
-            await payload.member.add_roles(Notices)
-    else:
+    if payload.channel_id != channel:
         return
+    if str(payload.emoji) == reactiona:
+        Testing = discord.utils.get(payload.member.guild.roles, name="Testing")
+        await payload.member.add_roles(Testing)
+    elif str(payload.emoji) == reactionb:
+        Builds = discord.utils.get(payload.member.guild.roles, name="Builds")
+        await payload.member.add_roles(Builds)
+    elif str(payload.emoji) == reactionc:
+        Vids = discord.utils.get(payload.member.guild.roles, name="Vids")
+        await payload.member.add_roles(Vids)
+    elif str(payload.emoji) == reactiond:
+        Notices = discord.utils.get(payload.member.guild.roles, name="Notices")
+        await payload.member.add_roles(Notices)
 
 @client.event
 async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     guild = client.get_guild(payload.guild_id)
     member = guild.get_member(payload.user_id)
-    if payload.channel_id == channel:
-        if str(payload.emoji) == reactiona:
-            Testing = discord.utils.get(member.guild.roles, name="Testing")
-            await member.remove_roles(Testing)
-        elif str(payload.emoji) == reactionb:
-            Builds = discord.utils.get(member.guild.roles, name="Builds")
-            await member.remove_roles(Builds)
-        elif str(payload.emoji) == reactionc:
-            Vids = discord.utils.get(member.guild.roles, name="Vids")
-            await member.remove_roles(Vids)
-        elif str(payload.emoji) == Vids:
-            Notices = discord.utils.get(member.guild.roles, name="Notices")
-            await member.remove_roles(Notices)
-    else:
+    if payload.channel_id != channel:
         return
+    if str(payload.emoji) == reactiona:
+        Testing = discord.utils.get(member.guild.roles, name="Testing")
+        await member.remove_roles(Testing)
+    elif str(payload.emoji) == reactionb:
+        Builds = discord.utils.get(member.guild.roles, name="Builds")
+        await member.remove_roles(Builds)
+    elif str(payload.emoji) == reactionc:
+        Vids = discord.utils.get(member.guild.roles, name="Vids")
+        await member.remove_roles(Vids)
+    elif str(payload.emoji) == Vids:
+        Notices = discord.utils.get(member.guild.roles, name="Notices")
+        await member.remove_roles(Notices)
 
 @tasks.loop(minutes=5)
 async def autoclockout():
@@ -100,60 +98,65 @@ async def checkstat():
 #Base Commands
 @bot.command(description="Adds your base for others to see")
 async def addbase(i: di, x: int, y: int, z: int, dimension: typing.Literal['Overworld', 'Nether', 'The End']):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     base = db['User Data'][userid]['base']
     if x == 0 and y == 0 and z == 0:
         await i.response.send_message("You can't set your base there.", ephemeral=True)
+        return
     elif abs(x) >= 29999984 or y <= -64 or y >= 320 or abs(z) >= 29999984:
         await i.response.send_message("Those coordinates are outside of the current build zone. (±29,999,984, -63/319, ±29,999,984).", ephemeral=True)
+        return
     elif base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": dimension.title()}
         await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:Lexicus_{dimension.lower().replace(" ", "_")}')
         await cr.save.save_info(DIR, srvfolder, db=db)
         await i.response.send_message(f"Your base cords are now set to `{x} {y} {z}` in the dimension `{dimension.title()}`.", ephemeral=True)
-    else:
-        await i.response.send_message("You already have a base set up! Use /viewBase to see it, or `/editbase` to change it.")
+        return
+    await i.response.send_message("You already have a base set up! Use /viewBase to see it, or `/editbase` to change it.")
 
 @bot.command(description="Edits your base location")
 async def editbase(i: di, x: int, y: int, z: int, dimension: typing.Literal['Overworld', 'Nether', 'The End']):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     base = db['User Data'][userid]['base']
     if x == 0 and y == 0 and z == 0:
         await i.response.send_message("You can't set your base there.", ephemeral=True)
+        return
     elif abs(x) >= 29999984 or y <= -64 or y >= 320 or abs(z) >= 29999984:
         await i.response.send_message("Those coordinates are outside of the current build zone. (±29,999,984, -63/319, ±29,999,984).", ephemeral=True)
+        return
     elif base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         await i.response.send_message(f"You have no base to edit. Add one with `/addbase {x} {y} {z}`!", ephemeral=True)
+        return
     elif base['x'] == x and base['y'] == y and base['z'] == z and dimension.title() == base['dimension']:
         await i.response.send_message("Your base is already set there!", ephemeral=True)
-    else:
-        db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": dimension.title()}
-        await rcon.command(f'dmarker delete id:{name}')
-        await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:Lexicus_{dimension.lower().replace(" ", "_")}')
-        await cr.save.save_info(DIR, srvfolder, db=db)
-        await i.response.send_message(f"{i.user.mention}, your base cords are now set to `{x} {y} {z}` in the dimension `{dimension.title()}`.", ephemeral=True)
+        return
+    db['User Data'][userid]['base'] = {"x": x, "y": y, "z": z, "dimension": dimension.title()}
+    await rcon.command(f'dmarker delete id:{name}')
+    await rcon.command(f'dmarker add icon:house id:{name} label:"{name}\'s Base" x:{x} y:{y} z:{z} world:Lexicus_{dimension.lower().replace(" ", "_")}')
+    await cr.save.save_info(DIR, srvfolder, db=db)
+    await i.response.send_message(f"{i.user.mention}, your base cords are now set to `{x} {y} {z}` in the dimension `{dimension.title()}`.", ephemeral=True)
 
 @bot.command(description="Removes your base location")
 async def removebase(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     base = db['User Data'][userid]['base']
     if base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         await i.response.send_message("You already don't have a base saved.", ephemeral=True)
-    else:
-        db['User Data'][userid]['base'] = {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}
-        await rcon.command(f'dmarker delete id:{name}')
-        await cr.save.save_info(DIR, srvfolder, db=db)
-        await i.response.send_message(f"{i.user.mention}, you have successfully removed your base.", ephemeral=True)
+        return
+    db['User Data'][userid]['base'] = {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}
+    await rcon.command(f'dmarker delete id:{name}')
+    await cr.save.save_info(DIR, srvfolder, db=db)
+    await i.response.send_message(f"{i.user.mention}, you have successfully removed your base.", ephemeral=True)
 
 @bot.command(description="Gives the location of a base")
 async def viewbase(i: di, player: discord.Member):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     base = db['User Data'][str(playerid)]['base']
     if base['x'] == 0 and base['y'] == 0 and base['z'] == 0:
         await i.response.send_message("This player doesn't have a base saved. Ask them to add it!", ephemeral=True)
-    else:
-        await i.response.send_message(f"{i.user.mention}, {username}'s base is `{base['x']} {base['y']} {base['z']}` in the dimension `{base['dimension']}`.", ephemeral=True)
+        return
+    await i.response.send_message(f"{i.user.mention}, {username}'s base is `{base['x']} {base['y']} {base['z']}` in the dimension `{base['dimension']}`.", ephemeral=True)
 
 #Database Commands
 @bot.command(description="Creates a Discord server's files")
@@ -170,25 +173,25 @@ async def addserver(i: di):
 @bot.command(description="Adds a player to the database")
 @app_commands.checks.has_role("Bot Admin")
 async def adduser(i: di, user: discord.Member):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(user) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(user)
     if str(playerid) in db['User Data']:
         await i.response.send_message(f"{username} is already added!", ephemeral=True)
-    else:  
-        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{username}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
-        db['User Data'].update(data)
-        await cr.save.save_info(DIR, srvfolder, db=db)
-        await i.response.send_message(f"Added {username} to the database!")
+        return
+    data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{username}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
+    db['User Data'].update(data)
+    await cr.save.save_info(DIR, srvfolder, db=db)
+    await i.response.send_message(f"Added {username} to the database!")
 
 @bot.command(description="Lists past server resets")
 @app_commands.checks.has_role("Bot Admin")
 async def listoldservers(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     message = "Here are the past resets:\n\n```"
     for (root, dirs, files) in os.walk(f'{srvfolder}/ResetData'):
         if not dirs:
             await i.response.send_message("There are no past resets.", ephemeral=True)
-            return 
+            return
         for dir in dirs:
             message+=dir
     message+="```"
@@ -243,23 +246,23 @@ async def register(i: di, username: str, platform: typing.Literal['Java', 'Bedro
             username = output.split(" ")[1]
     await i.guild.get_channel(bt.IDS.whitelist).send(f"Added `{username}` to the whitelist. Old name: {i.user.nick}")
     playername = username
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     playerid, username = await cr.load.get_user_info(i.user)
     await i.user.edit(nick=username)
     if str(playerid) in db['User Data']:
         db['User Data'][userid]['prison']['player'] = playername
         await cr.save.save_info(DIR, srvfolder, db=db)
         await i.followup.send(f"Your username has been updated to {playername}")
-    else:
-        data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{playername}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
-        db['User Data'].update(data)
-        await cr.save.save_info(DIR, srvfolder, db=db)
-        await i.followup.send(f"You have been whitelisted and added to the database for access to the features!\n`Username: {playername}`")
+        return
+    data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{playername}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
+    db['User Data'].update(data)
+    await cr.save.save_info(DIR, srvfolder, db=db)
+    await i.followup.send(f"You have been whitelisted and added to the database for access to the features!\n`Username: {playername}`")
 
 @bot.command(description="Resets a server's files")
 @app_commands.checks.has_role("Server Owner")
 async def resetserver(i: di, username: str, *, resetname: str=None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     if not username:
         await i.response.send_message("You need your username as confirmation.", ephemeral=True)
         return
@@ -276,7 +279,7 @@ async def resetserver(i: di, username: str, *, resetname: str=None):
 @bot.command(description="Restores data from a previous reset")
 @app_commands.checks.has_role("Bot Admin")
 async def restoreserver(i: di, username: str, savename: str, resetname:str=None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     if not username:
         await i.response.send_message("You need your username as confirmation.", ephemeral=True)
         return
@@ -307,8 +310,8 @@ async def update(i: di):
 @bot.command(description="Adds money to a player's wallet")
 @app_commands.checks.has_any_role("Economy Admin")
 async def addmoney(i: di, player: discord.Member, amount: float):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     economy = db['User Data'][str(playerid)]['economy']
     economy['bank'] += round(amount,2)
     db['User Data'][str(playerid)]['economy'] = economy
@@ -317,7 +320,7 @@ async def addmoney(i: di, player: discord.Member, amount: float):
 
 @bot.command(description="Manages your bank account")
 async def bank(i: di, transaction: typing.Literal['Deposit', 'Withdraw', 'View'], amount: float=None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     economy = db['User Data'][userid]['economy']
     money, Bank = economy['money'], economy['bank']
     if amount != None and amount < 0.01:
@@ -334,19 +337,20 @@ async def bank(i: di, transaction: typing.Literal['Deposit', 'Withdraw', 'View']
         await i.response.send_message(f"You deposited ${amount:,.2f}.", ephemeral=True)
         await cr.save.save_info(DIR, srvfolder, blog=f"{name} deposited ${amount:,.2f}")
         await cr.save.change_inflation(DIR, srvfolder, db)
-    elif transaction.lower() == "view":
+        return
+    if transaction.lower() == "view":
         await i.response.send_message(f"You have `${Bank:,.2f}` in the bank and `${money:,.2f}` in cash for a total of `${money+Bank:,.2f}`.",ephemeral=True)
-    elif transaction.lower() == "withdraw":
-        if Bank < round(amount, 2):
-            missing = round(amount-Bank,2)
-            await i.response.send_message(f"You don't have enough money in your bank account to take cash out. You need `${missing:,}` more.", ephemeral=True)
-        else:
-            nmoney, nbank = round(money+amount,2), round(Bank-amount,2)
-            economy['money'], economy['bank'] = nmoney, nbank
-            db['User Data'][userid]['economy'] = economy
-            await i.response.send_message(f"You withdrew ${amount:,.2f}.", ephemeral=True)
-            await cr.save.save_info(DIR, srvfolder, blog=f"{name} withdrew ${amount:,.2f}")
-            await cr.save.change_inflation(DIR, srvfolder, db)
+        return
+    if Bank < round(amount, 2):
+        missing = round(amount-Bank,2)
+        await i.response.send_message(f"You don't have enough money in your bank account to take cash out. You need `${missing:,}` more.", ephemeral=True)
+        return
+    nmoney, nbank = round(money+amount,2), round(Bank-amount,2)
+    economy['money'], economy['bank'] = nmoney, nbank
+    db['User Data'][userid]['economy'] = economy
+    await i.response.send_message(f"You withdrew ${amount:,.2f}.", ephemeral=True)
+    await cr.save.save_info(DIR, srvfolder, blog=f"{name} withdrew ${amount:,.2f}")
+    await cr.save.change_inflation(DIR, srvfolder, db)
 
 @bot.command(description="Buy an item in Minecraft from the shop")
 @app_commands.autocomplete(item=cr.load_prices_AutoComplete)
@@ -356,7 +360,7 @@ async def buy(i: di, seller: typing.Optional[discord.Member], item: str, id: typ
     if not tester in roles:
         await i.response.send_message("This command is still under development.")
         return
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     economy, inflation, Id = db['User Data'][userid]['economy'], db['Misc Data']['inflation'], id-1
     with open(f"{DIR}/discord/Prices.json", "r+") as f:
         data = json.load(f)
@@ -467,7 +471,7 @@ async def charity(i: di, action:str, charity:str=None, amount:float=0.0, descrip
     fcharity = charity.lower().replace(" ", "_")
     cpath = f"{charities}/{fcharity}.json"
     channel = discord.utils.get(i.guild.text_channels, name="charities")
-    
+
     if action == "create":
         if os.path.exists(cpath):
             await i.response.send_message("That charity is either already active or has previously existed. Please choose a different name.", ephermal=True)
@@ -554,7 +558,7 @@ async def charity(i: di, action:str, charity:str=None, amount:float=0.0, descrip
             db['User Data'][userid]['economy']['money'] = rdata
             blog = f"Charity {data['name']} distibuted ${amount:,.2f} to {Recipient}"
             await i.response.send_message(f"You've successfully distributed ${amount:,.2f} to {Recipient}!")
-                    
+
     elif action == "info":
         if userid != data['organizer']:
             await i.response.send_message("You are not authorized to make this decision.", ephemeral=True)
@@ -621,14 +625,14 @@ async def charity(i: di, action:str, charity:str=None, amount:float=0.0, descrip
             await i.response.send_message("This charity was removed, so it can no longer be reactivated. You'll need to make a new one with a different name.", ephemeral=True)
             return
         await i.response.send_message("This charity is already active.")
-                            
+
     await cr.save.save_charity(srvfolder, charity, data)
     await cr.save.save_info(DIR, srvfolder, blog=blog, db=db)
     await cr.save.change_inflation(DIR, srvfolder, db)
 
 @bot.command(description="Earns money for playing")
 async def clockin(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     dt = datetime.datetime.now()
     timestamp, economy = int(round(dt.timestamp())), db['User Data'][userid]['economy']
     output = await rcon.command(f"give {name} air")
@@ -645,7 +649,7 @@ async def clockin(i: di):
 
 @bot.command(description="Ends your current session")
 async def clockout(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     dt = datetime.datetime.now()
     timestamp, economy = int(round(dt.timestamp())), db['User Data'][userid]['economy']
     if economy['clockin'] == 0:
@@ -664,7 +668,7 @@ async def clockout(i: di):
 @bot.command(description="Draws the winning lottery ticket")
 @app_commands.checks.has_any_role("Bot Admin", "Economy Admin")
 async def drawlottery(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     entries, pool, udata = [], db['Misc Data']['lotto'], db['User Data']
     for player in db['User Data']:
         for q in range(udata[player]['lotteries']):
@@ -672,24 +676,24 @@ async def drawlottery(i: di):
         udata[player]['lotteries'] = 0
     if not entries:
         await i.channel.send("No tickets have been purchased yet. Try again a different day.", ephemeral=True)
-    else:
-        winner = random.choice(entries)
-        username = await commands.MemberConverter.convert(commands.MemberConverter, i, str(winner))
-        await i.channel.send(f"And the winner for the grand prize of ${pool:,} is:")
-        await asyncio.sleep(3)
-        await i.channel.send("Wait for it...")
-        await asyncio.sleep(3)
-        await i.response.send_message(f"{username.mention}!!")
-        udata[str(winner)]['economy']['money'] += pool
-        db['Misc Data']['lotto'], db['User Data'] = 0, udata
-        await cr.save.save_info(DIR, srvfolder, blog=f"{username.nick} won the lottery of ${pool:,}")
-        await cr.save.change_inflation(DIR, srvfolder, db)
-        await username.send(f"Congratulations on winning ${pool:,} from the lottery!")
+        return
+    winner = random.choice(entries)
+    username = await commands.MemberConverter.convert(commands.MemberConverter, i, str(winner))
+    await i.channel.send(f"And the winner for the grand prize of ${pool:,} is:")
+    await asyncio.sleep(3)
+    await i.channel.send("Wait for it...")
+    await asyncio.sleep(3)
+    await i.response.send_message(f"{username.mention}!!")
+    udata[str(winner)]['economy']['money'] += pool
+    db['Misc Data']['lotto'], db['User Data'] = 0, udata
+    await cr.save.save_info(DIR, srvfolder, blog=f"{username.nick} won the lottery of ${pool:,}")
+    await cr.save.change_inflation(DIR, srvfolder, db)
+    await username.send(f"Congratulations on winning ${pool:,} from the lottery!")
 
 @bot.command(description="Enchant your item if supported")
 async def enchant(i: di, level: int, *, enchantment: str):
     await i.response.send_message("This command is currently deactivated for an update.", ephemeral=True)
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     output = await rcon.command(f"data get entity {name} SelectedItem")
     nbt = output.split('data: ')[1]
     data_string = re.sub(r'(\d+)([bslfd])', r'\1', nbt)
@@ -702,8 +706,8 @@ async def enchant(i: di, level: int, *, enchantment: str):
 @bot.command(description="Forcefully ends a player's session")
 @app_commands.checks.has_any_role("Bot Admin", "Economy Admin")
 async def forceclockout(i: di, player: discord.Member, keep: bool):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     economy, dt = db['User Data'][playerid]['economy'], datetime.datetime.now()
     timestamp = int(round(dt.timestamp()))
     if economy['clockin'] == 0:
@@ -728,7 +732,7 @@ async def forceclockout(i: di, player: discord.Member, keep: bool):
 
 @bot.command(description="Shows the current inflation rate")
 async def inflation(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     inflate = db['Misc Data']['inflation']
     if inflate <= 0.75:
         Status = "low"
@@ -740,28 +744,28 @@ async def inflation(i: di):
 
 @bot.command(description="Buy lottery tickets")
 async def lottery(i: di, amount: int):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     lotto, cost, userdata = db['Misc Data']['lotto'], round(20*amount, 2), db['User Data'][userid]
     if amount <= 0:
         await i.response.send_message("You need to buy at least 1 ticket.", ephemeral=True)
         return
-    elif userdata['economy']['money'] >= cost:
-        userdata['lotteries'] += amount
-        userdata['economy']['money'] -= cost
-        pool, db['User Data'][userid] = round(lotto+cost), userdata
-        db['Misc Data']['lotto'] = pool
-        await i.response.send_message(f"You bought {amount} lottery tickets! Good luck!", ephemeral=True)
-        await i.channel.send(f"The lottery has now risen to **${pool:,}**")
-        await cr.save.save_info(DIR, srvfolder, blog=f"{name} bought {amount} tickets worth ${cost:,}")
-        await cr.save.change_inflation(DIR, srvfolder, db)
-    else:
+    if userdata['economy']['money'] < cost:
         remaining = round(cost-userdata['economy']['money'], 2)
         await i.response.send_message(f"You don't have enough cash. You need ${remaining:,} more. Perhaps try `/bank withdraw {remaining}`.", ephemeral=True)
+        return
+    userdata['lotteries'] += amount
+    userdata['economy']['money'] -= cost
+    pool, db['User Data'][userid] = round(lotto+cost), userdata
+    db['Misc Data']['lotto'] = pool
+    await i.response.send_message(f"You bought {amount} lottery tickets! Good luck!", ephemeral=True)
+    await i.channel.send(f"The lottery has now risen to **${pool:,}**")
+    await cr.save.save_info(DIR, srvfolder, blog=f"{name} bought {amount} tickets worth ${cost:,}")
+    await cr.save.change_inflation(DIR, srvfolder, db)
 
 @bot.command(description="Pay a player from your wallet")
 async def pay(i: di, player: discord.Member, amount:float, *, reason: str = None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     peconomy, ueconomy = db['User Data'][playerid]['economy'], db['User Data'][userid]['economy']
     umoney = ueconomy['money']
     if userid == playerid:
@@ -788,7 +792,7 @@ async def pay(i: di, player: discord.Member, amount:float, *, reason: str = None
 
 @bot.command(description="Pay the government from your wallet")
 async def paygovt(i: di, amount: float, reason: typing.Optional[str]):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     economy = db['User Data'][userid]['economy']
     money = economy['money']
     if amount <= 0:
@@ -813,14 +817,14 @@ async def paygovt(i: di, amount: float, reason: typing.Optional[str]):
 @bot.command(description="Get the price of an item")
 @app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def price(i: di, amount: typing.Optional[int] = None, *, item: str):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     with open(f"{DIR}/discord/Prices.json", "r+") as f:
         data = json.load(f)
         cost = db['Misc Data']['inflation']*data[item.title()]
     if not amount:
         await i.response.send_message(f"In the shop, the price of `{item.title()}` is `${cost*1.07:,.2f}`, and it will sell for `${cost*.95:,.2f}`.\nIn the void, the price of `{item.title()}` is `${(cost*1.07)*250:,.2f}`, and it will sell for `${(cost/4)*.95:,.2f}`.")
-    else:
-        await i.response.send_message(f"In the shop, the price for `{amount}` of `{item.title()}` is `${(cost*amount)*1.07:,.2f}`, and will sell for `${(cost*amount)*.95:,.2f}`.\nIn the void, the price for `{amount}` of `{item.title()}` is `${((cost*amount)*1.07)*250:,.2f}`, and will sell for `${((cost*amount)/4)*.95:,.2f}`.")
+        return
+    await i.response.send_message(f"In the shop, the price for `{amount}` of `{item.title()}` is `${(cost*amount)*1.07:,.2f}`, and will sell for `${(cost*amount)*.95:,.2f}`.\nIn the void, the price for `{amount}` of `{item.title()}` is `${((cost*amount)*1.07)*250:,.2f}`, and will sell for `${((cost*amount)/4)*.95:,.2f}`.")
 
 @bot.command(description="Gamble your money for a random item")
 async def randomitem(i: di):
@@ -841,8 +845,8 @@ async def randomitem(i: di):
 @bot.command(description="Removes money from a player's wallet")
 @app_commands.checks.has_role("Economy Admin")
 async def removemoney(i: di, player: discord.Member, amount: float):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     economy = db['User Data'][str(playerid)]['economy']
     economy['bank'] -= round(amount, 2)
     db['User Data'][str(playerid)]['economy'] = economy
@@ -856,7 +860,7 @@ async def sell(i: di, item: str, amount: int = 1, mode: typing.Literal["Basic", 
     if not tester in roles:
         await i.response.send_message("This command is still under development.", ephemeral=True)
         return
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     item, itemf = item.title(), item.lower().replace(" ", "_")
     online = await rcon.command(f"give {name} air")
     if "player not found" in online:
@@ -910,8 +914,8 @@ async def sell(i: di, item: str, amount: int = 1, mode: typing.Literal["Basic", 
 @bot.command(description="Sets a player's wallet to a specific amount")
 @app_commands.checks.has_role("Economy Admin")
 async def setmoney(i: di, player: discord.Member, amount: float):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     db['User Data'][str(playerid)]['economy']['bank'] = round(amount, 2)
     await cr.save.save_info(DIR, srvfolder, blog=f"Set {username}'s bank account to ${amount:,.2f}.", db=db)
     await i.response.send_message(f"Set {username}'s bank account to **${amount:,.2f}**.", ephemeral=True)
@@ -919,46 +923,51 @@ async def setmoney(i: di, player: discord.Member, amount: float):
 @bot.command(description="View shops or remove an item from your own")
 @app_commands.autocomplete(item=cr.load_prices_AutoComplete)
 async def shop(i: di, option:typing.Literal['Get', 'Remove'], player: typing.Optional[discord.Member] = None, amount: typing.Optional[int] = 1, *, item: str = None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    roles = i.user.roles
+    tester = discord.utils.get(i.user.guild.roles, name='Bot Tester')
+    if not tester in roles:
+        await i.response.send_message("This command is still under development.")
+        return
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     if option.lower() == "get":
-        await i.response.send_message(f"https://data.someminegame.com/Shop/{username}")
-    elif option.lower() == "remove":
-        if not amount:
-            amount = 1
-        amount = int(amount)
-        output = await rcon.command(f"give {name} air")
-        if "No player was found" in output:
-            await i.response.send_message("You need to be in Minecraft to run this command!", ephemeral=True)
-            return
-        data = db['User Data'][userid]['shop']
-        if not item.title() in data:
-            await rcon.command(f'tellraw {name} "You don\'t have any {item} in your shop."')
-            return
-        elif data[item.title()] < amount:
-            await rcon.command(f'tellraw {name} "You do not have enough {item}. You need {amount-data[item.title()]} more."')
-            return
-        elif amount <= 0:
-            await rcon.command(f'tellraw {name} "You cannot remove a negative amount of an item from your shop!"')
-            return
-        else:
-            db['User Data'][userid]['shop'][item.title()] -= amount
-        await rcon.command(f"give {name} {item.lower().replace(' ', '_')} {amount}")
-        await rcon.command(f'tellraw {name} ["",{{"text":"You removed ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}},{{"text":" to your shop.","color":"gray"}}]')
-        await cr.save.save_info(DIR, srvfolder, blog=f"{name} removed {amount:,} of {item.title()} from their shop")
-        await cr.save.change_inflation(DIR, srvfolder, db=db)      
+        await i.response.send_message(f"https://data.legacyoflexicus.com/Shop/{username}")
+        return
+    if not amount:
+        amount = 1
+    amount = int(amount)
+    output = await rcon.command(f"give {name} air")
+    if "No player was found" in output:
+        await i.response.send_message("You need to be in Minecraft to run this command!", ephemeral=True)
+        return
+    data = db['User Data'][userid]['shop']
+    if not item.title() in data:
+        await rcon.command(f'tellraw {name} "You don\'t have any {item} in your shop."')
+        return
+    elif data[item.title()] < amount:
+        await rcon.command(f'tellraw {name} "You do not have enough {item}. You need {amount-data[item.title()]} more."')
+        return
+    elif amount <= 0:
+        await rcon.command(f'tellraw {name} "You cannot remove a negative amount of an item from your shop!"')
+        return
+    else:
+        db['User Data'][userid]['shop'][item.title()] -= amount
+    await rcon.command(f"give {name} {item.lower().replace(' ', '_')} {amount}")
+    await rcon.command(f'tellraw {name} ["",{{"text":"You removed ","color":"gray"}},{{"text":"{amount:,}","color":"aqua"}},{{"text":" of ","color":"gray"}},{{"text":"{item.title()}","color":"white"}},{{"text":" to your shop.","color":"gray"}}]')
+    await cr.save.save_info(DIR, srvfolder, blog=f"{name} removed {amount:,} of {item.title()} from their shop")
+    await cr.save.change_inflation(DIR, srvfolder, db=db)
 
 @bot.command(description="See how much money the government has")
 @app_commands.checks.has_role("Government Finances")
 async def taxbal(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     await i.response.send_message(f"The tax account has `${db['Misc Data']['tax']:,.2f}` in it.")
 
 @bot.command(description="Pay a player with government funds")
 @app_commands.checks.has_role("Government Finances")
 async def taxpay(i: di, player: discord.Member, amount: float, *, reason: str = None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     economy, tax, channel = db['User Data'][playerid]['economy'], db['Misc Data']['tax'], discord.utils.get(i.message.guild.text_channels, name="server-finances")
     if amount <= 0:
         await i.response.send_message("You cannot send less than $0.01.", ephemeral=True)
@@ -1027,7 +1036,7 @@ async def voidsell(i: di, item: str, amount: typing.Optional[int] = 1):
 
 @bot.command(description="View the top ten richest players")
 async def wealthy(i: di):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     datalist, messagelist = [], []
     for player in db['User Data']:
         economy = db['User Data'][player]['economy']
@@ -1052,7 +1061,7 @@ async def wealthy(i: di):
 @bot.command(description="Remotely run a Minecraft command")
 @app_commands.checks.has_role("Bot Admin")
 async def cmd(i: di, command: str):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     output = await rcon.command(f"{command}")
     if output == "":
         output = "*The command ran without a response.*"
@@ -1066,28 +1075,26 @@ async def day(i: di):
     day = command[-1]
     await i.response.send_message(f"The current day is {day}")
 
+help_commands = ['addBase', 'addMoney', 'addNation', 'addSentence', 'addServer', 'addUser', 'bank', 'buy', 'charity', 'clockIn', 'clockOut', 'cmd', 'day', 'drawLottery', 'editBase', 'editNation', 'editSentence', 'enchant', 'forceClockOut', 'help', 'ip', 'inflation', 'listOldServers', 'lottery', 'pay', 'payGovt', 'price', 'register', 'randomItem', 'releasePrisoner', 'removeBase', 'removeMoney', 'reportIncident', 'resetServer', 'restoreServer', 'sell', 'setMoney', 'setup_channel_roles', 'shop', 'status', 'taxBal', 'taxPay', 'test', 'update', 'viewBase', 'viewSentence', 'voidBuy', 'voidSell', 'wealthy']
+async def help_commands_autocomplete(interaction: di, current: str):
+    matches = []
+    for command in help_commands:
+        if current.lower().strip() in command.lower()[:len(current.strip())]:
+            matches.append(app_commands.Choice(name=command, value=command))
+    return matches[:10]
 @bot.command(description="Sends a link to the help page for a command")
+@app_commands.autocomplete(command=help_commands_autocomplete)
 async def help(i: di, command:str=None):
     if not command:
-        await i.response.send_message("The help page can be found at https://someminegame.com/Main/Commands")
+        await i.response.send_message("The help page can be found at https://legacyoflexicus.com/Main/Commands")
         return
-    global index
-    index = 0
-    commands = ['addBase', 'addMoney', 'addSentence', 'addServer', 'addUser', 'bank', 'buy', 'charity', 'clockIn', 'clockOut', 'cmd', 'day', 'drawLottery', 'editBase', 'editSentence', 'enchant', 'enchantmentPlus', 'forceClockOut', 'help', 'ip', 'inflation', 'listOldServers', 'lottery', 'pay', 'payGovt', 'price', 'releasePrisoner', 'removeBase', 'removeMoney', 'reportIncident', 'resetServer', 'restoreServer', 'sell', 'setMoney', 'status', 'taxBal', 'taxPay', 'test', 'update', 'viewBase', 'viewSentence', 'voidBuy', 'voidSell', 'wealthy']
-    for option in commands:
-        if command.lower() == commands[index].lower():
-            command = commands[index]
-            break
-        else:
-            index += 1
-    if command not in commands:
-        await i.response.send_message("Your command wasn't found. Check your spelling and make sure the command isn't deprecated and try again.")
-    else:
-        await i.response.send_message(f"https://someminegame.com/Main/Commands/{command}")
+    if not command in help_commands:
+        await i.response.send_message("That command is not available.")
+    await i.response.send_message(f"https://legacyoflexicus.com/Main/Commands/{command}")
 
 @bot.command(description="List or edit the IPs")
 async def ip(i: di, jip:str=None, bip:str=None, bp:int=None):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
     ips = db['Misc Data']['ip']
     if not (jip and bip and bp):
         await i.response.send_message(f"The server IPs are\n\n**Java:** `{ips['JIP']}`\n**Bedrock**: `{ips['BIP']}     Port: {ips['BP']}`")
@@ -1166,8 +1173,8 @@ async def addnation(i: di, leader: discord.Member, name:str, motto:str, *, corne
 @bot.command(description="Creates a prison sentence for a player")
 @app_commands.checks.has_role("Prison Guard")
 async def addsentence(i: di, player: discord.Member, length: int, *, reason: str):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     prison = db['User Data'][playerid]['prison']
     output = await rcon.command(f"time query day")
     command = output.split(' ')
@@ -1188,12 +1195,12 @@ async def editnation(i: di, name:str, motto:str, *, corners:int):
     if not tester in roles:
         await i.response.send_message("This command is still under development.")
         return
-    
+
 @bot.command(description="Edits a player's prison sentence")
 @app_commands.checks.has_role("Prison Guard")
 async def editsentence(i: di, player: discord.Member, change: int):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     prison = db['User Data'][playerid]['prison']
     if prison['status'] == "Released":
         await i.response.send_message(f"{username} is released from prison and therefore can't have their day edited.", ephemeral=True)
@@ -1214,8 +1221,8 @@ async def editsentence(i: di, player: discord.Member, change: int):
 @bot.command(description="Ends a player's prison sentence")
 @app_commands.checks.has_role("Prison Guard")
 async def releaseprisoner(i: di, player: discord.Member):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     prison = db['User Data'][playerid]['prison']
     output = await rcon.command(f"time query day")
     command = output.split(' ')
@@ -1239,8 +1246,8 @@ async def reportincident(i: di, player: discord.Member, details:str):
 
 @bot.command(description="View a player's prison information")
 async def viewsentence(i: di, player: discord.Member):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR) 
-    playerid, username = await cr.load.get_user_info(player) 
+    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, username = await cr.load.get_user_info(player)
     prison = db['User Data'][playerid]['prison']
     rgb1, rgb2, rgb3 = random.randint(1, 255), random.randint(1, 255), random.randint(1, 255)
     colour = discord.Colour.from_rgb(rgb1, rgb2, rgb3)
