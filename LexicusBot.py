@@ -7,16 +7,21 @@ from aiomcrcon import Client
 from discord import app_commands
 from discord.ext import commands, tasks
 
+# Base Directory Of Bot
 DIR = os.getcwd()
+# Shorthand For Discord Interaction
 di = discord.Interaction
 
+# Required Bot Intents
 intents = discord.Intents.all()
 intents.members = True
 intents.guilds = True
 
+# Bot Setup
 client = discord.Client(intents=intents, help_command=None)
 bot = app_commands.CommandTree(client)
 
+# Command Error Handling
 @bot.error
 async def on_app_command_failure(i: di, error: app_commands.AppCommandError):
     if i.command.name == "addUser":
@@ -35,16 +40,19 @@ async def on_ready():
     # Bot's Status
     await client.change_presence(status=discord.Status.online, activity=discord.Game(name="Use /help for the wiki!"))
     await rcon.connect(5)
+    # checkstat.start()
     # Bot's Username
     BotUser = await client.guilds[1].fetch_member(client.application_id)
     print(f"{BotUser.display_name} online!")
 
+# Used On The Legacy Of Lexicus Server
 channel = 1407384861680861256
 reactiona = "⚠"
 reactionb = "🛠"
 reactionc = "🖥"
 reactiond = "🔔"
 
+# Used On The Legacy Of Lexicus Server
 @client.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     if payload.channel_id != channel:
@@ -62,6 +70,7 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         Notices = discord.utils.get(payload.member.guild.roles, name="Notices")
         await payload.member.add_roles(Notices)
 
+# Used On The Legacy Of Lexicus Server
 @client.event
 async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     guild = client.get_guild(payload.guild_id)
@@ -216,11 +225,11 @@ async def viewbase(i: di, player: discord.Member = None):
 ### Database Commands ###
 #########################
 
-#Database Commands
 @bot.command(description="Creates a Discord server's files")
 @app_commands.checks.has_role("Bot Admin")
 async def addserver(i: di):
     path = f"{DIR}/discord/{i.guild.id}"
+    # Discord Server Exists
     if os.path.exists(f"{path}/maindb.json"):
         await i.response.send_message("This server is already active.", ephemeral=True)
         return
@@ -233,6 +242,7 @@ async def addserver(i: di):
 async def adduser(i: di, user: discord.Member):
     _, _, srvfolder, db = await cr.load.get_info(i, DIR)
     playerid, username = await cr.load.get_user_info(user)
+    # Discord User Already Added
     if str(playerid) in db['User Data']:
         await i.response.send_message(f"{username} is already added!", ephemeral=True)
         return
@@ -247,6 +257,7 @@ async def adduser(i: di, user: discord.Member):
 async def listoldservers(i: di):
     _, _, srvfolder, _ = await cr.load.get_info(i, DIR)
     message = "Here are the past resets:\n\n```"
+    # Gets list of folders in ResetData
     for (root, dirs, files) in os.walk(f'{srvfolder}/ResetData'):
         if not dirs:
             await i.response.send_message("There are no past resets.", ephemeral=True)
@@ -258,61 +269,68 @@ async def listoldservers(i: di):
 
 @bot.command(description="Adds you to the whitelist and database")
 async def register(i: di, username: str, platform: typing.Literal['Java', 'Bedrock']):
+    # Extends the Bot's alloted response time to Discord
     await i.response.defer()
     names = i.channel.members
     names.remove(i.user)
-    for user in names:
-        if (user.nick or user.name).lower() == (username.lower() or f".{username.lower()}"):
-            await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect.\n-# E.1.", ephemeral=True)
-            return
-    try:
-        if i.user.nick[0] == ".":
-            await rcon.command(f"fwhitelist remove {i.user.nick}")
-        else:
-            await rcon.command(f"whitelist remove {i.user.nick}")
-    except:
-        pass
     if platform == 'Bedrock':
+        # Username already registered to another member.
         for user in i.channel.members:
             if (user.nick or user.name).lower() == f".{username.lower()}":
-                await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect.\n-# E.2", ephemeral=True)
+                await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect. You will need proof of account ownership.\n-# E.1", ephemeral=True)
                 return
         try:
+            # Get Xbox Gamertag from Microsoft
             uuid, gamertag = xuid.get(target_gamertag = username)
             if uuid == None:
-                await i.followup.send("That gamertag doesn't exist. Check your spelling.", ephemeral=True)
+                await i.followup.send("That gamertag doesn't exist. Check your spelling. # E.3", ephemeral=True)
                 return
-        except:
-            await i.followup.send("That gamertag doesn't exist. Check your spelling.", ephemeral=True)
+        except Exception as e:
+            await i.followup.send(f"There was a problem connecting with Microsoft's services. # E.4 - {e}")
             return
         username = f".{gamertag}"
-        output = await rcon.command(f"fwhitelist add 00000000-0000-0000-000{uuid[0]}-{uuid[1:]}")
+        output = await rcon.send_cmd(f"fwhitelist add 00000000-0000-0000-000{uuid[0]}-{uuid[1:]}")
+        output = output[0]
+        # Player not in Floodgate's system yet.
+        # Happens if the account is new and/or they haven't joined a Geyser server.
         if "unable to find any" in output:
             await i.followup.send("There was an issue adding your name. Check your spelling and try again, or message a moderator to help.", ephemeral=True)
             return
-        else:
-            pass
-    else:
+    else: # Java accounts
         for user in names:
+            # Username already registered to another member.
             if (user.nick or user.name).lower() == username.lower():
-                await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect.\n-# E.3", ephemeral=True)
+                await i.followup.send("That username is already registered. Contact an admin for assistance if this is incorrect. You will need proof of account ownership.\n-# E.2", ephemeral=True)
                 return
-        output = await rcon.command(f"whitelist add {username}")
+        output = await rcon.send_cmd(f"whitelist add {username}")
+        output = output[0]
         if "not exist" in output:
             await i.followup.send(f"There was an issue adding your name. Check your spelling and try again, or message a moderator to help.", ephemeral=True)
             return
         else:
+            # Returns proper username capitalization.
             username = output.split(" ")[1]
+    try:
+        # Removes old username from whitelist, if they have one
+        if i.user.nick[0] == ".":
+            await rcon.send_cmd(f"fwhitelist remove {i.user.nick}")
+        else:
+            await rcon.send_cmd(f"whitelist remove {i.user.nick}")
+    except:
+        # Primarily only fails if the rcon is interrupted.
+        pass
     await i.guild.get_channel(bt.IDS.whitelist).send(f"Added `{username}` to the whitelist. Old name: {i.user.nick}")
     playername = username
     userid, _, srvfolder, db = await cr.load.get_info(i, DIR)
     playerid, username = await cr.load.get_user_info(i.user)
-    await i.user.edit(nick=username)
+    await i.user.edit(nick=playername)
+    # Updates player's username if they are changing usernames.
     if str(playerid) in db['User Data']:
         db['User Data'][userid]['prison']['player'] = playername
         await cr.save.save_info(DIR, srvfolder, db=db)
         await i.followup.send(f"Your username has been updated to {playername}")
         return
+    # Adds player to the database if this is their first time registering.
     data = {str(playerid): {"base": {"x": 0, "y": 0, "z": 0, "dimension": "Overworld"}, "economy": {"bank": 0, "clockin": 0, "clockout": 0, "money": 0}, "lotteries": 0, "prison": {"player": f"{playername}", "length": 0, "started": 0, "release": 0, "newrelease": 0, "status": "Released", "reason": "Not In Prison", "times": 0}, "shop": {}}}
     db['User Data'].update(data)
     await cr.save.save_info(DIR, srvfolder, db=db)
@@ -329,6 +347,7 @@ async def resetserver(i: di, username: str, *, resetname: str=None):
     if username != name:
         await i.response.send_message("That username didn't match yours!", ephemeral=True)
         return
+    # Creates archive of current files
     archive = cr.files.archive_files(DIR, srvfolder, i, resetname)
     if archive == False:
         return
@@ -364,7 +383,41 @@ async def restoreserver(i: di, username: str, archive: str, resetname:str=None):
 @bot.command(description="Updates files to a newer format")
 @app_commands.checks.has_role("Bot Admin")
 async def update(i: di):
-    await i.response.send_message("No database updates at this time.")
+    LexicusData = await cr.get_LexicusDB(db=True, dbname=str(i.guild.id))
+    await LexicusData.execute(f"SHOW TABLES;")
+    response = await LexicusData.fetchall()
+    await LexicusData.close()
+    await i.response.send_message(f"MYSQL response: {response}")
+
+@bot.command(description="Updates a player's username")
+@app_commands.checks.has_role("Bot Admin")
+async def updateuser(i: di, player: discord.Member, username: str):
+    _, _, srvfolder, db = await cr.load.get_info(i, DIR)
+    playerid, oldUsername = await cr.load.get_user_info(player)
+    if username == oldUsername:
+        await i.response.send_message("That username is already set!", ephemeral=True)
+        return
+    for user in i.channel.members:
+        if (user.nick or user.name).lower() == username.lower():
+            await i.response.send_message("That username is already registered. Update that player first, then come back to this player.", ephemeral=True)
+            return
+    if oldUsername[0] == ".":
+        await rcon.send_cmd(f"fwhitelist remove {oldUsername}")
+    else:
+        await rcon.send_cmd(f"whitelist remove {oldUsername}")
+    if username[0] == ".":
+        output = await rcon.send_cmd(f"fwhitelist add {username}")
+        if "unable to find any" in output[0]:
+            await i.response.send_message(f"There was an issue adding the new username. Check the spelling and try again, or message the server owner for manual addition. Username provided: {username}", ephemeral=True)
+            return
+    else:
+        output = await rcon.send_cmd(f"whitelist add {username}")
+        if "not exist" in output[0]:
+            await i.response.send_message(f"There was an issue adding the new username. Check the spelling and try again, or message the server owner for manual addition. Username provided: {username}", ephemeral=True)
+            return
+    db['User Data'][str(playerid)]['prison']['player'] = username
+    await cr.save.save_info(DIR, srvfolder, db=db)
+    await i.response.send_message(f"Updated {oldUsername}'s username to {username}.")
 
 ########################
 ### Economy Commands ###
@@ -1047,8 +1100,8 @@ async def shop(i: di, option:typing.Literal['Get', 'Remove'], player: typing.Opt
     if not tester in roles:
         await i.response.send_message("This command is still under development.")
         return
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
-    playerid, username = await cr.load.get_user_info(player)
+    userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    _, username = await cr.load.get_user_info(player)
     if option.lower() == "get":
         await i.response.send_message(f"https://data.legacyoflexicus.com/Shop/{username}")
         return
@@ -1191,8 +1244,14 @@ async def wealthy(i: di):
 @bot.command(description="Remotely run a Minecraft command")
 @app_commands.checks.has_role("Bot Admin")
 async def cmd(i: di, command: str):
-    server, userid, name, srvfolder, db = await cr.load.get_info(i, DIR)
-    output = await rcon.command(f"{command}")
+    roles = i.user.roles
+    tester = discord.utils.get(i.user.guild.roles, name='Bot Tester')
+    if not tester in roles:
+        await i.response.send_message("This command is under repair.")
+        return
+    _, name, srvfolder, db = await cr.load.get_info(i, DIR)
+    output = await rcon.send_cmd(f"{command}")
+    output = output[0]
     if output == "":
         output = "*The command ran without a response.*"
     await i.response.send_message(output, ephemeral=True)
@@ -1200,7 +1259,13 @@ async def cmd(i: di, command: str):
 
 @bot.command(description="See the current Miencraft day")
 async def day(i: di):
-    output = await rcon.command(f"time query day")
+    roles = i.user.roles
+    tester = discord.utils.get(i.user.guild.roles, name='Bot Tester')
+    if not tester in roles:
+        await i.response.send_message("This command is under repair.")
+        return
+    output = await rcon.send_cmd(f"time query day")
+    output = output[0]
     command = output.split(' ')
     day = command[-1]
     await i.response.send_message(f"The current day is {day}")
@@ -1241,21 +1306,6 @@ async def ip(i: di, jip:str=None, bip:str=None, bp:int=None):
     db['Misc Data']['ip'] = ips
     await cr.save.save_info(DIR, srvfolder, db=db)
 
-@bot.command(description="DW about it")
-@commands.dm_only()
-async def scam(i: di):
-    username = i.user.nick
-    if username != ("SomeMineGame" or "zoobleCar" or ""):
-        await i.response.send_message("I SAID, DON'T WORRY ABOUT IT.")
-        return
-    coke = await rcon.command(f"minecraft:clear {username} sugar")
-    cokes = int(str(coke).split(" ")[1])
-    await rcon.command(f'give {username} sugar[custom_name=[{{"text":"Cocaine","italic":false,"color":"aqua"}}],lore=[[{{"text":"Purest Authentic Quality","italic":false,"color":"green"}}]],enchantment_glint_override=true,attribute_modifiers=[{{type:armor,amount:0,operation:add_value,id:"1767855985365"}}],food={{nutrition:1,can_always_eat:1b,saturation:1}},consumable={{consume_seconds:0.5,animation:drink,sound:"entity.panda.sneeze",on_consume_effects:[{{type:apply_effects,effects:[{{id:nausea,duration:300,amplifier:1,show_particles:0b,show_icon:0b}},{{id:speed,duration:140,amplifier:1}},{{id:poison,duration:20,amplifier:10,show_particles:0b,show_icon:0b}}]}}]}}] {cokes}')
-    pcp = await rcon.command(f"minecraft:clear {username} honey_bottle")
-    pcps = int(str(pcp).split(" ")[1])
-    await rcon.command(f'give {username} honey_bottle[custom_name=[{{"text":"PCP","italic":false,"color":"aqua"}}],lore=[[{{"text":"Purest Authentic Quality","italic":false,"color":"green"}}]],enchantment_glint_override=true,attribute_modifiers=[{{type:armor,amount:0,operation:add_value,id:"1767857091709"}}],food={{nutrition:1,can_always_eat:1b,saturation:1}},consumable={{consume_seconds:0.5,animation:drink,sound:"item.honey_bottle.drink",on_consume_effects:[{{type:apply_effects,effects:[{{id:darkness,duration:200,amplifier:0,show_particles:0b,show_icon:0b}},{{id:strength,duration:300,amplifier:0,show_particles:0b,show_icon:0b}},{{id:regeneration,duration:200,amplifier:0,show_particles:0b,show_icon:0b}}]}}]}}] {pcps}')
-    await i.response.send_message("Done :)")
-
 @bot.command()
 @app_commands.checks.has_role("Bot Admin")
 async def setup_channel_roles(i: di):
@@ -1268,7 +1318,7 @@ async def setup_channel_roles(i: di):
 @bot.command(description="Tests if the Minecraft server is responding")
 async def status(i: di):
     await i.response.send_message("Pinging the server...")
-    local = minestat.MineStat(bt.MC.local_domain, bt.MC.local_query)
+    local = minestat.MineStat(bt.MC.local_domain, bt.MC.query)
     Global = minestat.MineStat(bt.MC.global_domain, 25565)
     if local.online == True and Global.online == True:
         message = "online, and is"
@@ -1331,7 +1381,7 @@ async def editnation(i: di, name:str, motto:str, *, corners:int):
     if not tester in roles:
         await i.response.send_message("This command is still under development.")
         return
-
+    
 @bot.command(description="Edits a player's prison sentence")
 @app_commands.checks.has_role("Prison Guard")
 async def editsentence(i: di, player: discord.Member, change: int):

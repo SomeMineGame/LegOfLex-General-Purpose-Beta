@@ -6,6 +6,14 @@ di = discord.Interaction
 class files():
     async def add_files(Dir: str, path: str):
         os.makedirs(f"{path}/Charities")
+        """Create the files for a Discord server.
+
+        Args:
+            Dir (str): The root directory of the main bot file.
+            path (str): The path of the target Discord folder.
+            
+        Does not return anything.
+        """
         open(f"{path}/banklog.txt", "x")
         open(f"{path}/prisonlog.txt", "x")
         open(f"{path}/rconlog.txt", "x")
