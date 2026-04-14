@@ -1,5 +1,6 @@
 /discord
 test.py
+bet.py
 /discord_extras/bot.py
 /__pycache__
 /discord_extras/__pycache__
@@ -10,3 +11,6 @@ cache.bin
 Chunks.py
 ignore.py
 MC-Prices.ods
+.~lock.MC-Prices.ods#
+/legoflex
+sys

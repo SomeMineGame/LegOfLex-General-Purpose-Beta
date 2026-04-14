@@ -1,89 +1,56 @@
-import json, asyncrcon, os, datetime, discord
+import json, aiomcrcon, os, datetime, discord, asyncio
 from . import bot as bt
 from . import common_resources as cr
 
 global Worked
 Worked = 5
 
-class timers():
-    async def autoclockout(client: discord.Client, Dir, rcon: asyncrcon.AsyncRCON):
-        for files, dirs, root in os.walk(f"{Dir}/discord"):
-            for q in dirs:
-                with open(f"{Dir}/discord/{q}/maindb.json", "r+") as f:
-                    data = json.load(f)
-                    for player in data['User Data']:
-                        if data["User Data"][player]['economy']['clockin'] != 0:
-                            guild = client.get_guild(int(q))
-                            username = guild.get_member(int(player)).nick
-                            output = await rcon.command(f"give {username} air")
-                            if "No player was found" in output:
-                                economy, dt = data['User Data'][player]['economy'], datetime.datetime.now()
-                                timestamp = int(round(dt.timestamp()))
-                                earned = timestamp - economy['clockin']
-                                mathstuff, tax = round((earned/60)*7.5, 2), round(earned*.02, 2)
-                                earnings = round(mathstuff-tax, 2)
-                                economy['bank'], economy['clockout'], economy['clockin'] = round(economy['bank']+earnings, 2), timestamp, 0
-                                data['User Data'][player]['economy'] = economy
-                                blog = f"{username} was automatically clocked out of work and was paid ${earnings:,}"
-                                channel = discord.utils.get(guild.text_channels, name="bot-commands")
-                                await channel.send(f"{guild.get_member(int(player)).mention}, you have been clocked out automatically.")
-                                await cr.save.change_inflation(Dir, f"{Dir}/discord/{q}", data)
-                                await cr.save.save_info(Dir, f"{Dir}/discord/{q}", blog, data)
-            break
-                                
-    async def checkstat(client:discord.client, Dir, rcon: asyncrcon.AsyncRCON):  
+rcon = aiomcrcon.Client(bt.MC.local_domain, bt.MC.port, bt.MC.password)    
+
+# Bot Setup
+class timers():                            
+    async def checkstat(client:discord.Client, Dir, rcon: aiomcrcon.Client):  
         global Worked
         worked = Worked
         async def attempt():
-            await rcon.command("time query day")
+            await rcon.send_cmd("time query day")
             global Worked
             Worked = True
         try:
             if worked == False:
                 try:
-                    await rcon.open_connection()
+                    await rcon.connect(5)
                     await attempt()
                 except:
                     pass
             else:
                 await attempt()
-        except:
+        except Exception as e:
+            print(e)
             Worked = False
+        role = discord.utils.get(client.get_guild(bt.IDS.main).roles, name="Notices")
         if worked == Worked:
             pass
         elif worked == 5:
             pass
         elif Worked == False:
-            rcon.close()
-            # msg = discord.utils.get(client.get_guild(sr.IDS.hub).text_channels, name="status")
-            # msg = await msg.send(f"The server is **Inaccessible!**\nConnection attempts will happen every 10 seconds.\n\n<t:{int(datetime.datetime.timestamp(datetime.datetime.now()))}:R>")
-            print((f"The server is **Inaccessible!**\nConnection attempts will happen every 10 seconds.\n\n<t:{int(datetime.datetime.timestamp(datetime.datetime.now()))}:R>"))
-            # await msg.publish()
+            await rcon.close()
+            msg = discord.utils.get(client.get_guild(bt.IDS.main).channels, name="status")
+            await msg.send(f"The server is **Inaccessible!**\nConnection attempts will happen every 60 seconds.\n\n<t:{int(datetime.datetime.timestamp(datetime.datetime.now()))}:R>\n\n{role.mention}")
+            #print((f"The server is **Inaccessible!**\nConnection attempts will happen every 60 seconds.\n\n<t:{int(datetime.datetime.timestamp(datetime.datetime.now()))}:R>"))
             
         elif Worked == True:
-            # msg = discord.utils.get(client.get_guild(sr.IDS.hub).text_channels, name="status")
-            # msg = await msg.send(f"The server is **accessible** again!")
-            print(f"The server is **accessible** again!")
-            # await msg.publish()
+            msg = discord.utils.get(client.get_guild(bt.IDS.main).channels, name="status")
+            await msg.send(f"The server is **accessible** again!\n\n{role.mention}")
+            #print(f"The server is **accessible** again!")
             
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    
-    async def mc_irl_time(rcon: asyncrcon.AsyncRCON):
+    async def mc_irl_time(rcon: aiomcrcon.Client):
         dt = datetime.datetime.now()
         seconds = (dt - dt.replace(hour=0,minute=0,second=0)).total_seconds()
         converted = (seconds/3.6)-6000
         if converted < 0:
             converted+=24000
         try:
-            await rcon.command(f"time set {int(converted)}")
+            await rcon.send_cmd(f"time set {int(converted)}")
         except:
             pass
