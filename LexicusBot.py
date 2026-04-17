@@ -94,10 +94,15 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
 async def checkstat():
     await timers.timers.checkstat(client)
     
+DISCORD_INVITE_REGEX = r"(https?://)?(www\.)?(discord\.gg|discordapp\.com|discord\.com)(/invite)?/[a-zA-Z0-9]+/?"
+    
 @client.event
 async def on_message(ctx: discord.Message):
     if isinstance(ctx.channel, discord.DMChannel):
         return
+    if (DISCORD_INVITE_REGEX in ctx.content) and (not "Server Owner" in [role.name for role in ctx.author.roles]):
+        await ctx.delete()
+        await ctx.channel.send(f"{ctx.author.mention}, Discord invites are not allowed! This is due to scam and phishing invites. Contact SomeMineGame to get it posted for you.", delete_after=10)
     if ctx.channel.name == "mc-chat":
         srvfolder = f"{DIR}/discord/{ctx.guild.id}"
         with open(f"{srvfolder}/maindb.json", 'r+') as f:
